@@ -1,6 +1,6 @@
 {
   "name": "searchfetch",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
@@ -18,7 +18,8 @@
   },
   "scripts": {
     "start": "node ./index.js",
-    "inspector": "npx @modelcontextprotocol/inspector node ./index.js"
+    "inspector-js": "npx @modelcontextprotocol/inspector node ./index.js",
+    "inspector-py": "npx @modelcontextprotocol/inspector uv run python ./server.py"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -27,10 +28,5 @@
     "playwright-core": "^1.59.1",
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/cheerio": "^0.22.35",
-    "@types/node": "^25.6.2",
-    "@types/turndown": "^5.0.6"
   }
 }
