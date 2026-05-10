@@ -1,10 +1,5 @@
 #!/usr/bin/env node
 
-// ==========================================
-// 🛡️ STDOUT JAIL FOR MCP PROTOCOL SAFETY
-// ==========================================
-// We intercept all writes and redirect them to stderr until MCP is ready.
-// This prevents installation logs from crashing the JSON-RPC stream.
 const originalStdoutWrite = process.stdout.write.bind(process.stdout);
 process.stdout.write = (chunk, encoding, callback) => {
   return process.stderr.write(chunk, encoding, callback);

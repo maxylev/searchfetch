@@ -3,7 +3,7 @@
 A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built specifically for AI Agents, it bypasses Google's GDPR consent screens, Cloudflare Turnstile, and converts heavy HTML into clean, token-optimized Markdown.
 
 ## Features
-* **Multi-Engine Search:** Natively supports Google and DuckDuckGo parsing out of the box. Google is set as the preferred default.
+* **Multi-Engine Search:** Natively supports DuckDuckGo and Google parsing out of the box. DuckDuckGo is set as the preferred default.
 * **Aggressive Base64 / Image Scrubber:** Implements "nuclear" DOM scrubbing prior to parsing. Guaranteed to NEVER pollute your LLM's context window with giant base64 image strings (`data:image/...`).
 * **Stealth CloakBrowser:** Avoids FingerprintJS, reCAPTCHA, and Cloudflare using Chromium C++ patches and humanized mouse movements natively. 
 * **SPA & React Support:** Waits for network idle to ensure modern Single Page Applications fully execute JavaScript and render before extracting content.
@@ -13,9 +13,9 @@ A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web se
 ## Installation
 
 1. Clone or copy the directory.
-  ```bash
-  git clone https://github.com/maxylev/searchfetch
-  ```
+   ```bash
+   git clone https://github.com/maxylev/searchfetch
+   ```
 2. Install dependencies:
    ```bash
    npm install

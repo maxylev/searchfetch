@@ -1,13 +1,19 @@
 {
   "name": "searchfetch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
     "searchfetch": "./index.js"
   },
+  "files": [
+    "index.js"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "start": "node index.js",
+    "start": "node ./index.js",
     "inspector": "npx @modelcontextprotocol/inspector node ./index.js"
   },
   "dependencies": {
