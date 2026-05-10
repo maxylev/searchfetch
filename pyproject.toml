@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "searchfetch"
+version = "2.0.0"
+description = "A maximum fault-tolerant, stealth-enabled MCP server for web searching and fetching."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors =[
+    { name = "Max" }
+]
+keywords =["mcp", "search", "fetch", "llm", "ai", "agent", "stealth"]
+dependencies =[
+    "mcp>=1.27.1",
+    "cloakbrowser>=0.3.26",
+    "beautifulsoup4>=4.12.0",
+    "markdownify>=0.11.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/maxylev/searchfetch"
+Repository = "https://github.com/maxylev/searchfetch"
+
+[project.scripts]
+mcp-searchfetch = "server:main"
+searchfetch = "server:main"
+
+[tool.setuptools]
+py-modules =["server"]

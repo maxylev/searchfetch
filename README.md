@@ -1,81 +1,96 @@
-# SearchFetch
+# SearchFetch (MCP Server)
 
-A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built specifically for AI Agents, it bypasses Google's GDPR consent screens, Cloudflare Turnstile, and converts heavy HTML into clean, token-optimized Markdown.
+A maximum fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built specifically for AI Agents (Cursor, Claude Desktop, OpenHands), it completely bypasses bot detection (Cloudflare Turnstile, Datadome), dynamically handles SPAs/React, and converts bloat into token-optimized Markdown.
 
 ## Features
-* **Multi-Engine Search:** Natively supports DuckDuckGo and Google parsing out of the box. DuckDuckGo is set as the preferred default.
-* **Aggressive Base64 / Image Scrubber:** Implements "nuclear" DOM scrubbing prior to parsing. Guaranteed to NEVER pollute your LLM's context window with giant base64 image strings (`data:image/...`).
-* **Stealth CloakBrowser:** Avoids FingerprintJS, reCAPTCHA, and Cloudflare using Chromium C++ patches and humanized mouse movements natively. 
-* **SPA & React Support:** Waits for network idle to ensure modern Single Page Applications fully execute JavaScript and render before extracting content.
-* **Fault Tolerant:** Extracts whatever DOM was successfully loaded even if a massive, clunky page times out mid-render.
-* **Pagination Support:** Fetches massive webpages iteratively via `start_index` and `max_length` without blowing out AI context tokens limits.
+* **Maximum Fault Tolerance:** Implements auto-healing browser sessions, grace-period timeouts for clunky SPAs, and network-level aborting of tracking scripts and media.
+* **Stealth Engine:** Powered by CloakBrowser C++ patches + `humanize` logic. Antibot systems score it as a normal browser because it mathematically moves and renders exactly like one.
+* **Nuclear Token Scrubber:** Strips Base64 images, SVGs, scripts, and inline styles out of the DOM *before* Markdown conversion, guaranteeing your LLM context window won't blow out.
+* **Dual Execution Paths:** Natively supports zero-install execution via both Python (`uvx`) and Node.js (`npx`).
 
-## Installation
+---
 
-1. Clone or copy the directory.
-   ```bash
-   git clone https://github.com/maxylev/searchfetch
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Make the main script executable:
-   ```bash
-   chmod +x index.js
-   ```
-4. Link it globally to your system:
-   ```bash
-   npm link
-   ```
+## Usage & Installation
 
-## Configuration
+You do not need to install this repository manually. Configure your agent to use the zero-install commands `npx` or `uvx` depending on your environment.
 
-Configure your AI tool/IDE (Cursor, Claude Desktop, Opencode, etc.) to point to this server.
+### Claude Desktop Configuration
+Add the following to your config:
 
-### Example `config.json` (Opencode, Cursor):
-```json
-{
-  "mcp": {
-    "searchfetch": {
-      "type": "local",
-      "command":["npx", "searchfetch"],
-      "enabled": true
-    }
-  }
-}
-```
-
-### Example `claude_desktop_config.json`:
+**Option A: Using Python (`uvx` - Recommended)**
 ```json
 {
   "mcpServers": {
     "searchfetch": {
-      "command": "npx",
+      "command": "uvx",
       "args": ["searchfetch"]
     }
   }
 }
 ```
 
+**Option B: Using Node.js (`npx`)**
+```json
+{
+  "mcpServers": {
+    "searchfetch": {
+      "command": "npx",
+      "args": ["-y", "searchfetch"]
+    }
+  }
+}
+```
+
+### Cursor / IDE Configuration
+Add it via the **MCP panel** in Cursor settings:
+* **Type:** `command`
+* **Command:** `uvx searchfetch` (or `npx -y searchfetch`)
+
+---
+
 ## Available Tools
 
 ### 1. `websearch`
-Searches the web via Google or DuckDuckGo and returns structured snippets.
-* **`query`** (string): Your search query.
-* **`engine`** (string): `"google"` or `"duckduckgo"` (default `"duckduckgo"`).
-* **`max_results`** (number): Number of results to return (default `10`).
+Searches the web using DuckDuckGo or Google. Returns a clean list of titles, URLs, and snippets. Excellent for researching general knowledge, news, and finding URLs.
+
+**Parameters:**
+* **`query`** *(string, required)*: The search query string.
+* **`engine`** *(string, optional)*: Search engine to use. Can be `"duckduckgo"` or `"google"`. Default is `"duckduckgo"`.
+* **`max_results`** *(number, optional)*: Maximum number of results to return. Default is `10`.
+* **`region`** *(string, optional)*: Region and language code to localize search results. 
+  * Examples: `"us-en"`, `"uk-en"`, `"de-de"`. 
+  * For DuckDuckGo, it maps directly. 
+  * For Google, it maps to the `gl` (country) and `hl` (language) query parameters automatically.
+  * Default is `"wt-wt"` (global/US English).
+* **`safe_search`** *(string, optional)*: Safe search filtering mode. 
+  * `"-1"` for Moderate.
+  * `"1"` for Strict. 
+  * `"-2"` for Off. 
+  * Default is `"-1"`. 
+  * *Note: Only applies to DuckDuckGo.*
 
 ### 2. `webfetch`
-Visits a URL as a stealthy human, waits for the JS to render, completely scrubs visual assets/inline styles to save tokens, and returns the markdown content.
-* **`url`** (string): Full HTTP/HTTPS link.
-* **`format`** (string): Set to `"markdown"` (default), `"clean_html"`, or `"raw_html"`.
-* **`start_index`** (number): Pagination offset.
-* **`max_length`** (number): Maximum character length to return per call (default `10000`).
-* **`block_media`** (boolean): Speeds up page loads by ignoring images, videos, and fonts entirely at the network layer (default `true`).
+Fetch and extract the main text content from any webpage. Fully executes JavaScript to load React/SPAs and aggressively strips images/media (including base64) to save context tokens.
 
-## Debugging
-If you want to debug JSON-RPC shapes locally:
+**Parameters:**
+* **`url`** *(string, required)*: The full URL of the webpage to fetch (must start with http/https).
+* **`format`** *(string, optional)*: Output format. Set to `"markdown"`, `"clean_html"`, or `"raw_html"`. Default is `"markdown"` (highly recommended to save context tokens).
+* **`start_index`** *(number, optional)*: Character offset to start reading from for pagination. Use this if a document is too large to fit in the context window. Default is `0`.
+* **`max_length`** *(number, optional)*: Maximum characters to return per request. Default is `10000`.
+* **`block_media`** *(boolean, optional)*: Block images, videos, and fonts entirely at the network layer to drastically speed up page loads and dodge tracking pixels. Default is `true`.
+
+---
+
+## Architecture & Contributions
+This repository utilizes a flat dual-manifest file structure (`package.json` and `pyproject.toml` in the root). When committing changes, ensure parity between `index.js` and `server.py` logic.
+
+### Local Development
 ```bash
-npm run inspector
+# Node.js Testing
+npm i
+npm run inspector-js
+
+# Python Testing
+pip install -e .
+npm run inspector-py
 ```
