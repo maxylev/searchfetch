@@ -1,29 +1,40 @@
 {
   "name": "docs-page",
-  "description": "Documentation page (ReadTheDocs, Sphinx, etc.)",
-  "order": 8,
+  "description": "Documentation page (ReadTheDocs, Sphinx, Mintlify, VitePress, Docusaurus, Nextra, etc.)",
+  "order": 9,
   "url_patterns": [
     "^https?://[^/]+\\.readthedocs\\.io/.*",
-    "^https?://[^/]+\\.rtfd\\.io/.*"
+    "^https?://[^/]+\\.rtfd\\.io/.*",
+    "^https?://docs\\.mintlify\\.com/.*",
+    "^https?://[^/]+\\.mintlify\\.(?:com|app|dev)/.*",
+    "^https?://[^/]+/docs(?:/.*)?$",
+    "^https?://[^/]+/doc(?:/.*)?$",
+    "^https?://docs\\.[^/]+\\.[^/]+/.*"
   ],
+  "source_url": "{url}.md",
   "remove": [
     "script",
     "style",
     "svg",
     "nav",
     "footer",
-    ".sphinxsidebar"
+    ".sphinxsidebar",
+    ".sidebar",
+    "aside",
+    ".nextra-toc",
+    ".table-of-contents",
+    ".pagination-nav"
   ],
   "sections": [
     {
       "name": "Title",
-      "selector": "h1",
+      "selector": "h1, h2",
       "format": "text",
       "required": false
     },
     {
       "name": "Content",
-      "selector": "[role='main'], .document, .rst-content, article",
+      "selector": "[role='main'], .document, .rst-content, article, .content, .markdown-body, .prose, main, .nextra-content, .doc-content",
       "format": "markdown",
       "required": false
     }

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "searchfetch"
-version = "3.0.1"
+version = "3.1.0"
 description = "A maximum fault-tolerant, stealth-enabled MCP server for web searching and fetching."
 readme = "README.md"
 license = "MIT"
@@ -41,4 +41,6 @@ templates = [
     "templates/google-search.json",
     "templates/duckduckgo-search.json",
     "templates/docs-page.json",
+    "templates/docs-rs.json",
+    "templates/docker-hub.json",
 ]

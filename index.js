@@ -408,6 +408,100 @@ async function fetchHtmlWithRetry(url, template, blockMedia) {
   throw lastError;
 }
 
+// === SOURCE MARKDOWN DETECTION ===========================================
+
+function isMarkdownContent(text) {
+  if (!text) return false;
+  const htmlTagCount = (text.match(/<\w+[^>]*>/g) || []).length;
+  if (htmlTagCount > 3) return false;
+  const patterns = [
+    /^#{1,6}\s+\S/m,
+    /\[.+?\]\(.+?\)/,
+    /```\w*\n/,
+    /^\s*[-*+]\s+\S/m,
+    /\*\*[^*]+\*\*/,
+    /^>\s+\S/m,
+  ];
+  for (const pat of patterns) {
+    if (pat.test(text)) return true;
+  }
+  return false;
+}
+
+function stripSourceMarkdown(content) {
+  return content
+    .replace(/^@twoslash-cache:.*$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function resolveSourceUrl(sourceTemplate, url) {
+  if (sourceTemplate === "{url}.md") {
+    return `${url.replace(/\/+$/, "")}.md`;
+  }
+  return sourceTemplate.replace("{url}", url);
+}
+
+async function fetchSourceMarkdown(sourceUrl, template, blockMedia) {
+  const browser = await browserManager.getBrowser();
+  const context = await browser.newContext();
+
+  try {
+    if (template && template.cookies && template.cookies.length > 0) {
+      await context.addCookies(template.cookies);
+    }
+
+    const page = await context.newPage();
+    try {
+      if (blockMedia) {
+        const blockedTypes =
+          template && template.block_resources
+            ? template.block_resources
+            : ["image", "media", "font"];
+        if (blockedTypes.length > 0) {
+          await page.route("**/*", (route) => {
+            const type = route.request().resourceType();
+            if (blockedTypes.includes(type)) route.abort();
+            else route.continue();
+          });
+        }
+      }
+
+      let response;
+      try {
+        response = await page.goto(sourceUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: 10000,
+        });
+      } catch (_) {
+        return null;
+      }
+
+      if (response && response.status() >= 400) return null;
+
+      let text;
+      try {
+        text = await page.evaluate(
+          "() => document.body?.innerText || document.body?.textContent || ''",
+        );
+      } catch (_) {
+        text = await page.content();
+      }
+
+      if (!text || typeof text !== "string") return null;
+
+      text = stripSourceMarkdown(text.trim());
+      return isMarkdownContent(text) ? text : null;
+    } finally {
+      await page.close();
+    }
+  } catch (_) {
+    return null;
+  } finally {
+    await context.close();
+  }
+}
+
 // === HTML CLEANUP ========================================================
 
 const DEFAULT_REMOVE_SELECTORS = [
@@ -1095,10 +1189,31 @@ server.registerTool(
         template = getTemplateByName(templateParam);
       }
 
-      // 2. Fetch
+      // 2. Try source markdown if template specifies source_url
+      let sourceMd = null;
+      if (template && template.source_url) {
+        const sourceUrl = resolveSourceUrl(template.source_url, url);
+        sourceMd = await fetchSourceMarkdown(sourceUrl, template, block_media);
+      }
+
+      if (sourceMd !== null) {
+        const totalLength = sourceMd.length;
+        const paginated = sourceMd.substring(start_index, start_index + max_length);
+        let metadata =
+          `\n\n---\n[webfetch: template="${template ? template.name : "auto"}" (source markdown), ` +
+          `showing characters ${start_index} to ${start_index + paginated.length} of ${totalLength} total.`;
+        if (start_index + max_length < totalLength) {
+          metadata +=
+            ` Use start_index=${start_index + max_length} to read more.`;
+        }
+        metadata += "]";
+        return { content: [{ type: "text", text: paginated + metadata }] };
+      }
+
+      // 3. Fetch
       const html = await fetchHtmlWithRetry(url, template, block_media);
 
-      // 3. Extract and compose
+      // 4. Extract and compose
       const $ = cheerio.load(html);
 
       if (template) {

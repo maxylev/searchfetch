@@ -1,0 +1,47 @@
+{
+  "name": "docs-rs",
+  "description": "docs.rs rustdoc documentation page — crate docs, struct/enum/fn items",
+  "order": 6,
+  "url_patterns": [
+    "^https?://docs\\.rs/[^/]+/[^/]+/[^/]+/?$",
+    "^https?://docs\\.rs/[^/]+/[^/]+/[^/]+/index\\.html$",
+    "^https?://docs\\.rs/[^/]+/[^/]+/[^/]+/.+\\.html$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav.sidebar",
+    "nav.sub",
+    "footer",
+    ".search-form",
+    ".rustdoc-version-dialog",
+    ".mobile-topbar",
+    ".out-of-band",
+    "#source-sidebar",
+    "#theme-picker",
+    "#settings-menu",
+    ".since",
+    ".srclink"
+  ],
+  "sections": [
+    {
+      "name": "Crate",
+      "selector": "h1.crate-title, .crate-title h1, .in-band .crate-name",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Title",
+      "selector": "h1.fqn, .in-band h1, h1",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Content",
+      "selector": "#main-content, main, .main, .docblock",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

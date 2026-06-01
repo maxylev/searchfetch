@@ -1,7 +1,7 @@
 {
   "name": "google-search",
   "description": "Google web search results",
-  "order": 6,
+  "order": 7,
   "url_patterns": [
     "^https?://(www\\.)?google\\.[^/]+/search\\?"
   ],

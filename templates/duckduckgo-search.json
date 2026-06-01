@@ -1,7 +1,7 @@
 {
   "name": "duckduckgo-search",
   "description": "DuckDuckGo HTML search results",
-  "order": 7,
+  "order": 8,
   "url_patterns": [
     "^https?://html\\.duckduckgo\\.com/html/\\?"
   ],

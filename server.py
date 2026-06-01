@@ -377,6 +377,84 @@ def resolve_page_template(url: str, template_arg: str):
 
 
 # ---------------------------------------------------------------------------
+# Source markdown detection (fetch raw .md source instead of HTML)
+# ---------------------------------------------------------------------------
+
+
+def _is_markdown_content(text: str) -> bool:
+    if not text:
+        return False
+    html_tags = len(re.findall(r"<\w+[^>]*>", text))
+    if html_tags > 3:
+        return False
+    patterns = [
+        r"^#{1,6}\s+\S",
+        r"\[.+?\]\(.+?\)",
+        r"```\w*\n",
+        r"^\s*[-*+]\s+\S",
+        r"\*\*[^*]+\*\*",
+        r"^>\s+\S",
+    ]
+    for pat in patterns:
+        if re.search(pat, text, re.MULTILINE):
+            return True
+    return False
+
+
+def _strip_source_markdown(content: str) -> str:
+    content = re.sub(r"^@twoslash-cache:.*$", "", content, flags=re.MULTILINE)
+    content = re.sub(r"\n{3,}", "\n\n", content)
+    return content.strip()
+
+
+def _resolve_source_url(source_template: str, url: str) -> str:
+    if source_template == "{url}.md":
+        return f"{url.rstrip('/')}.md"
+    return source_template.replace("{url}", url)
+
+
+async def _fetch_source_markdown(
+    source_url: str, template: dict | None, block_media: bool
+):
+    """Try fetching a page as raw markdown source text.
+
+    Returns the stripped text if it looks like markdown, None otherwise.
+    """
+    browser = await browser_manager.get_browser()
+    context, page = await _new_fetch_page(browser, template, block_media)
+    try:
+        try:
+            response = await page.goto(
+                source_url, wait_until="domcontentloaded", timeout=10000
+            )
+        except Exception:
+            return None
+
+        http_status = response.status if response else None
+        if http_status and http_status >= 400:
+            return None
+
+        try:
+            text = await page.evaluate(
+                "() => document.body?.innerText || document.body?.textContent || ''"
+            )
+        except Exception:
+            text = await page.content()
+
+        if not text or not isinstance(text, str):
+            return None
+
+        text = _strip_source_markdown(text.strip())
+        if _is_markdown_content(text):
+            return text
+        return None
+    except Exception:
+        return None
+    finally:
+        await context.close()
+
+
+# ---------------------------------------------------------------------------
 # Access-failure detection
 # ---------------------------------------------------------------------------
 
@@ -1062,19 +1140,30 @@ async def webfetch(
     except Exception:
         origin = ""
 
-    # 3. Fetch
-    html = await fetch_html(url, matched_template, block_media, retry=True)
+    # 3. Try source markdown if template specifies source_url
+    source_md = None
+    if matched_template and matched_template.get("source_url"):
+        source_url = _resolve_source_url(matched_template["source_url"], url)
+        source_md = await _fetch_source_markdown(
+            source_url, matched_template, block_media
+        )
 
-    # 4. Parse and extract
-    soup = BeautifulSoup(html, "html.parser")
-
-    if matched_template is not None:
-        sections_data = extract_template(soup, matched_template, origin=origin)
-        output = compose_sections(sections_data, template_name)
+    if source_md is not None:
+        output = source_md
     else:
-        output = generic_fallback(html, url)
+        # 4. Fetch
+        html = await fetch_html(url, matched_template, block_media, retry=True)
 
-    # 5. Pagination
+        # 5. Parse and extract
+        soup = BeautifulSoup(html, "html.parser")
+
+        if matched_template is not None:
+            sections_data = extract_template(soup, matched_template, origin=origin)
+            output = compose_sections(sections_data, template_name)
+        else:
+            output = generic_fallback(html, url)
+
+    # 6. Pagination
     total_length = len(output)
     paginated = output[start_index : start_index + max_length]
 

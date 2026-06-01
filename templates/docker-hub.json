@@ -1,0 +1,41 @@
+{
+  "name": "docker-hub",
+  "description": "Docker Hub image page — official and community images with description and README",
+  "order": 10,
+  "url_patterns": [
+    "^https?://hub\\.docker\\.com/_/[^/]+/?$",
+    "^https?://hub\\.docker\\.com/r/[^/]+/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    "header",
+    ".styles_sidebar__",
+    ".styles_chatbot__",
+    "[data-testid='chatbot']"
+  ],
+  "sections": [
+    {
+      "name": "Image",
+      "selector": "h1",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Description",
+      "selector": "meta[name='description']",
+      "format": "attribute",
+      "attribute": "content",
+      "required": false
+    },
+    {
+      "name": "Content",
+      "selector": "#readme-more-content-wrapper, article, [data-testid='description'], main, .MuiContainer-root",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}
