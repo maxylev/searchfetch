@@ -426,6 +426,54 @@ def _detect_access_failure(http_status: int | None, soup: BeautifulSoup) -> bool
 # Fetch engine — stealth browser with cookie injection & resource blocking
 # ---------------------------------------------------------------------------
 
+FETCH_MAX_ATTEMPTS = 2
+HTTP_429_RETRY_DELAY_SECONDS = 2.0
+
+
+class HttpStatusError(RuntimeError):
+    def __init__(self, status: int, url: str, retry_after: float | None = None):
+        super().__init__(f"Access denied: HTTP {status} when fetching {url}")
+        self.status = status
+        self.retry_after = retry_after
+
+
+def _parse_retry_after(value: str | None) -> float:
+    if not value:
+        return HTTP_429_RETRY_DELAY_SECONDS
+    try:
+        seconds = float(value)
+        if seconds >= 0:
+            return min(seconds, 30.0)
+    except ValueError:
+        pass
+    return HTTP_429_RETRY_DELAY_SECONDS
+
+
+async def _new_fetch_page(browser, template: dict | None, block_media: bool):
+    context = await browser.new_context()
+
+    if template:
+        for c in template.get("cookies", []):
+            await context.add_cookies([c])
+
+    page = await context.new_page()
+
+    if block_media:
+        if template:
+            block_types = set(template.get("block_resources", ["image", "media", "font"]))
+        else:
+            block_types = {"image", "media", "font"}
+
+        async def route_handler(route):
+            if route.request.resource_type in block_types:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await page.route("**/*", route_handler)
+
+    return context, page
+
 
 async def fetch_html(
     url: str, template: dict | None, block_media: bool, retry: bool = True
@@ -440,34 +488,11 @@ async def fetch_html(
         retry: If True, retry once on network errors.
     """
     browser = await browser_manager.get_browser()
-    context = await browser.new_context()
-
-    # Pre-load template cookies
-    if template:
-        for c in template.get("cookies", []):
-            await context.add_cookies([c])
-
-    page = await context.new_page()
-
-    # Route handler for resource blocking
-    if block_media:
-        if template:
-            block_types = set(
-                template.get("block_resources", ["image", "media", "font"])
-            )
-        else:
-            block_types = {"image", "media", "font"}
-
-        async def route_handler(route):
-            if route.request.resource_type in block_types:
-                await route.abort()
-            else:
-                await route.continue_()
-
-        await page.route("**/*", route_handler)
+    context, page = await _new_fetch_page(browser, template, block_media)
 
     last_exc = None
-    for attempt in range(2 if retry else 1):
+    attempts = FETCH_MAX_ATTEMPTS if retry else 1
+    for attempt in range(attempts):
         try:
             try:
                 response = await page.goto(
@@ -477,6 +502,11 @@ async def fetch_html(
                 response = None  # partial render is OK
 
             http_status = response.status if response else None
+            if http_status in (401, 403):
+                raise HttpStatusError(http_status, url)
+            if http_status == 429:
+                retry_after = _parse_retry_after(response.headers.get("retry-after"))
+                raise HttpStatusError(http_status, url, retry_after)
 
             content = await page.content()
             soup = BeautifulSoup(content, "html.parser")
@@ -490,6 +520,16 @@ async def fetch_html(
 
             await context.close()
             return content
+
+        except HttpStatusError as exc:
+            last_exc = exc
+            if attempt < attempts - 1 and exc.status == 429:
+                await context.close()
+                await asyncio.sleep(exc.retry_after or HTTP_429_RETRY_DELAY_SECONDS)
+                context, page = await _new_fetch_page(browser, template, block_media)
+                continue
+            await context.close()
+            raise
 
         except (RuntimeError, ValueError):
             await context.close()
@@ -510,30 +550,11 @@ async def fetch_html(
                 or "enotfound" in exc_msg
                 or "navigation" in exc_msg
             )
-            if attempt == 0 and is_network:
+            if attempt < attempts - 1 and is_network:
                 await asyncio.sleep(0.5)
                 # Need fresh page/context for retry
                 await context.close()
-                context = await browser.new_context()
-                if template:
-                    for c in template.get("cookies", []):
-                        await context.add_cookies([c])
-                page = await context.new_page()
-                if block_media:
-                    if template:
-                        block_types = set(
-                            template.get("block_resources", ["image", "media", "font"])
-                        )
-                    else:
-                        block_types = {"image", "media", "font"}
-
-                    async def route_handler_retry(route):
-                        if route.request.resource_type in block_types:
-                            await route.abort()
-                        else:
-                            await route.continue_()
-
-                    await page.route("**/*", route_handler_retry)
+                context, page = await _new_fetch_page(browser, template, block_media)
                 continue
             await context.close()
             raise RuntimeError(f"Failed to fetch {url} after retry: {last_exc}") from exc

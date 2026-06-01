@@ -244,6 +244,33 @@ function mapSearchParams(engine, query, region, safeSearch) {
 
 // === FETCH ===============================================================
 
+const FETCH_MAX_ATTEMPTS = 2;
+const HTTP_429_RETRY_DELAY_MS = 2000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(value) {
+  if (!value) return HTTP_429_RETRY_DELAY_MS;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, 30000);
+  }
+  const dateMs = Date.parse(value);
+  if (Number.isFinite(dateMs)) {
+    return Math.min(Math.max(dateMs - Date.now(), 0), 30000);
+  }
+  return HTTP_429_RETRY_DELAY_MS;
+}
+
+function makeHttpStatusError(status, url, retryAfterMs = null) {
+  const err = new Error(`Access denied: HTTP ${status} when fetching ${url}`);
+  err.httpStatus = status;
+  err.retryAfterMs = retryAfterMs;
+  return err;
+}
+
 function isAccessDenied($) {
   const title = ($("title").text() || "").toLowerCase();
   const bodyText = ($("body").text() || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -325,8 +352,10 @@ async function fetchHtml(url, template, blockMedia) {
       if (response) {
         const status = response.status();
         if ([401, 403, 429].includes(status)) {
-          throw new Error(
-            `Access denied: HTTP ${status} when fetching ${url}`,
+          throw makeHttpStatusError(
+            status,
+            url,
+            status === 429 ? parseRetryAfterMs(response.headers()["retry-after"]) : null,
           );
         }
       }
@@ -352,18 +381,25 @@ async function fetchHtml(url, template, blockMedia) {
 
 async function fetchHtmlWithRetry(url, template, blockMedia) {
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < FETCH_MAX_ATTEMPTS; attempt++) {
     try {
       return await fetchHtml(url, template, blockMedia);
     } catch (err) {
       lastError = err;
       if (
-        attempt === 0 &&
+        attempt < FETCH_MAX_ATTEMPTS - 1 &&
+        err.httpStatus === 429
+      ) {
+        await sleep(err.retryAfterMs ?? HTTP_429_RETRY_DELAY_MS);
+        continue;
+      }
+      if (
+        attempt < FETCH_MAX_ATTEMPTS - 1 &&
         (err.message.includes("net::") ||
           err.message.includes("ERR_") ||
           err.message.includes("Navigation failed"))
       ) {
-        // Network error — retry once
+        await sleep(500);
         continue;
       }
       throw err;
@@ -920,7 +956,7 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.0.0" });
+const server = new McpServer({ name: "searchfetch", version: "3.0.1" });
 
 // --- websearch tool ---
 
