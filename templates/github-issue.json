@@ -1,0 +1,69 @@
+{
+  "name": "github-issue",
+  "description": "GitHub issue or pull request",
+  "order": 2,
+  "url_patterns": [
+    "^https?://github\\.com/[^/]+/[^/]+/issues/\\d+/?$",
+    "^https?://github\\.com/[^/]+/[^/]+/pull/\\d+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    ".octicon",
+    ".anchor"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": ".js-issue-title",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "State",
+      "selector": ".State",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Author",
+      "selector": ".TimelineItem .author",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Created",
+      "selector": ".TimelineItem relative-time",
+      "format": "attribute",
+      "attribute": "datetime",
+      "required": false
+    },
+    {
+      "name": "Body",
+      "selector": ".js-discussion .comment-body",
+      "format": "markdown",
+      "required": false
+    },
+    {
+      "name": "Comments",
+      "selector": ".js-discussion .TimelineItem",
+      "multiple": true,
+      "max_items": 50,
+      "children": [
+        {
+          "name": "Author",
+          "selector": ".author",
+          "format": "text",
+          "required": false
+        },
+        {
+          "name": "Comment",
+          "selector": ".comment-body",
+          "format": "markdown",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

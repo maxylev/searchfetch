@@ -1,0 +1,67 @@
+{
+  "name": "duckduckgo-search",
+  "description": "DuckDuckGo HTML search results",
+  "order": 7,
+  "url_patterns": [
+    "^https?://html\\.duckduckgo\\.com/html/\\?"
+  ],
+  "url_template": "https://html.duckduckgo.com/html/?q={query}&kl={kl}&kp={kp}",
+  "url_params": {
+    "query": {
+      "required": true,
+      "description": "Search query string",
+      "encode": "url"
+    },
+    "kl": {
+      "required": false,
+      "default": "wt-wt",
+      "description": "Region/language code (e.g., 'us-en', 'de-de', 'wt-wt' for global)"
+    },
+    "kp": {
+      "required": false,
+      "default": "-1",
+      "description": "Safe search: '-1' moderate, '1' strict, '-2' off"
+    }
+  },
+  "block_resources": [
+    "image",
+    "media",
+    "font",
+    "stylesheet"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "img",
+    "nav",
+    "footer"
+  ],
+  "sections": [
+    {
+      "name": "Results",
+      "selector": ".result",
+      "multiple": true,
+      "max_items": 10,
+      "children": [
+        {
+          "name": "Title",
+          "selector": ".result__title a",
+          "format": "text"
+        },
+        {
+          "name": "URL",
+          "selector": ".result__title a",
+          "format": "attribute",
+          "attribute": "href",
+          "transform": "decode_ddg_url"
+        },
+        {
+          "name": "Snippet",
+          "selector": ".result__snippet",
+          "format": "text"
+        }
+      ]
+    }
+  ]
+}

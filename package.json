@@ -1,13 +1,14 @@
 {
   "name": "searchfetch",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
     "searchfetch": "./index.js"
   },
   "files": [
-    "index.js"
+    "index.js",
+    "templates/"
   ],
   "publishConfig": {
     "access": "public"
@@ -24,8 +25,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "cheerio": "^1.2.0",
-    "cloakbrowser": "^0.3.27",
-    "playwright-core": "^1.59.1",
+    "cloakbrowser": "^0.3.31",
+    "playwright-core": "^1.60.0",
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
   }

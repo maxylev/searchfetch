@@ -1,0 +1,49 @@
+{
+  "name": "npm-package",
+  "description": "npm package page — metadata and README",
+  "order": 3,
+  "url_patterns": [
+    "^https?://(www\\.)?npmjs\\.com/package/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer"
+  ],
+  "sections": [
+    {
+      "name": "Package",
+      "selector": "h1, h2",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Version",
+      "selector": "[data-testid='package-version']",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Description",
+      "selector": "meta[name='description']",
+      "format": "attribute",
+      "attribute": "content",
+      "required": false
+    },
+    {
+      "name": "Keywords",
+      "selector": "[data-testid='keywords'] a",
+      "format": "text",
+      "required": false,
+      "multiple": true
+    },
+    {
+      "name": "README",
+      "selector": "#readme",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

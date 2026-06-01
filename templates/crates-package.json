@@ -1,0 +1,37 @@
+{
+  "name": "crates-package",
+  "description": "crates.io package page — metadata and README",
+  "order": 5,
+  "url_patterns": [
+    "^https?://crates\\.io/crates/[^/]+/?$",
+    "^https?://crates\\.io/crates/[^/]+/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer"
+  ],
+  "sections": [
+    {
+      "name": "Crate",
+      "selector": "h1",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Description",
+      "selector": "meta[name='description']",
+      "format": "attribute",
+      "attribute": "content",
+      "required": false
+    },
+    {
+      "name": "README",
+      "selector": ".crate-readme, #crate-readme, .markdown-body",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

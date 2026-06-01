@@ -1,0 +1,36 @@
+{
+  "name": "github-repo",
+  "description": "GitHub repository root — file listing and README",
+  "order": 1,
+  "url_patterns": [
+    "^https?://github\\.com/[^/]+/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    ".octicon",
+    ".anchor"
+  ],
+  "sections": [
+    {
+      "name": "Description",
+      "selector": "meta[name='description']",
+      "format": "attribute",
+      "attribute": "content",
+      "required": false
+    },
+    {
+      "name": "Files",
+      "selector": "table[aria-labelledby='folders-and-files']",
+      "format": "markdown",
+      "required": false
+    },
+    {
+      "name": "README",
+      "selector": "article.markdown-body.entry-content.container-lg",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

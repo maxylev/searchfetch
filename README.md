@@ -1,6 +1,6 @@
 # SearchFetch (MCP Server)
 
-A maximum fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built specifically for AI Agents (Cursor, Claude Desktop, OpenHands), it completely bypasses bot detection (Cloudflare Turnstile, Datadome), dynamically handles SPAs/React, and converts bloat into token-optimized Markdown.
+A maximum fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built specifically for AI Agents (Cursor, Claude Code, OpenCode), it completely bypasses bot detection (Cloudflare Turnstile, Datadome), dynamically handles SPAs/React, and converts bloat into token-optimized Markdown.
 
 ## Features
 * **Maximum Fault Tolerance:** Implements auto-healing browser sessions, grace-period timeouts for clunky SPAs, and network-level aborting of tracking scripts and media.
@@ -51,33 +51,33 @@ Add it via the **MCP panel** in Cursor settings:
 ## Available Tools
 
 ### 1. `websearch`
-Searches the web using DuckDuckGo or Google. Returns a clean list of titles, URLs, and snippets. Excellent for researching general knowledge, news, and finding URLs.
+Searches the web through the v3 template pipeline. DuckDuckGo and Google are built-in templates, and custom search templates can be selected by name.
 
 **Parameters:**
 * **`query`** *(string, required)*: The search query string.
-* **`engine`** *(string, optional)*: Search engine to use. Can be `"duckduckgo"` or `"google"`. Default is `"duckduckgo"`.
+* **`engine`** *(string, optional)*: Search engine/template to use. Can be `"duckduckgo"`, `"google"`, or a custom search template name. Default is `"duckduckgo"`.
 * **`max_results`** *(number, optional)*: Maximum number of results to return. Default is `10`.
-* **`region`** *(string, optional)*: Region and language code to localize search results. 
+* **`region`** *(string/null, optional)*: Region and language code to localize search results. 
   * Examples: `"us-en"`, `"uk-en"`, `"de-de"`. 
   * For DuckDuckGo, it maps directly. 
   * For Google, it maps to the `gl` (country) and `hl` (language) query parameters automatically.
-  * Default is `"wt-wt"` (global/US English).
-* **`safe_search`** *(string, optional)*: Safe search filtering mode. 
-  * `"-1"` for Moderate.
-  * `"1"` for Strict. 
-  * `"-2"` for Off. 
-  * Default is `"-1"`. 
-  * *Note: Only applies to DuckDuckGo.*
+  * `null` uses the template default.
+* **`safe_search`** *(boolean/null, optional)*: Enable safe search. Maps to DuckDuckGo/Google parameters automatically; `null` uses the template default.
+* **`block_media`** *(boolean, optional)*: Block images, media, and fonts at the network layer. Default is `true`.
 
 ### 2. `webfetch`
-Fetch and extract the main text content from any webpage. Fully executes JavaScript to load React/SPAs and aggressively strips images/media (including base64) to save context tokens.
+Fetches a page with CloakBrowser and extracts structured Markdown using a named, inline, or auto-detected template. Built-ins include GitHub repositories/issues, npm, PyPI, crates.io, and ReadTheDocs-style docs pages. Unknown pages fall back to generic Markdown extraction.
 
 **Parameters:**
 * **`url`** *(string, required)*: The full URL of the webpage to fetch (must start with http/https).
-* **`format`** *(string, optional)*: Output format. Set to `"markdown"`, `"clean_html"`, or `"raw_html"`. Default is `"markdown"` (highly recommended to save context tokens).
+* **`template`** *(string, optional)*: `"auto"`, a built-in template name, or inline JSON template. Default is `"auto"`.
 * **`start_index`** *(number, optional)*: Character offset to start reading from for pagination. Use this if a document is too large to fit in the context window. Default is `0`.
 * **`max_length`** *(number, optional)*: Maximum characters to return per request. Default is `10000`.
 * **`block_media`** *(boolean, optional)*: Block images, videos, and fonts entirely at the network layer to drastically speed up page loads and dodge tracking pixels. Default is `true`.
+
+Template extraction supports `text`, `markdown`, `attribute`, and `html` sections; nested children; repeated sections; URL decoding transforms; per-template cookies; and per-template resource blocking.
+
+Built-in templates live in `templates/*.json` and are shared by the Node.js and Python implementations. Each JSON file defines exactly one template — no duplication between languages.
 
 ---
 

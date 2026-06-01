@@ -1,0 +1,31 @@
+{
+  "name": "docs-page",
+  "description": "Documentation page (ReadTheDocs, Sphinx, etc.)",
+  "order": 8,
+  "url_patterns": [
+    "^https?://[^/]+\\.readthedocs\\.io/.*",
+    "^https?://[^/]+\\.rtfd\\.io/.*"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    ".sphinxsidebar"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "h1",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Content",
+      "selector": "[role='main'], .document, .rst-content, article",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "pypi-package",
+  "description": "PyPI package page — metadata and README",
+  "order": 4,
+  "url_patterns": [
+    "^https?://pypi\\.org/project/[^/]+/?$",
+    "^https?://pypi\\.org/project/[^/]+/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer"
+  ],
+  "sections": [
+    {
+      "name": "Package",
+      "selector": "h1.package-header__name",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Description",
+      "selector": "p.package-header__description",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Metadata",
+      "selector": "ul.sidebar-section__list li",
+      "format": "text",
+      "required": false,
+      "multiple": true
+    },
+    {
+      "name": "README",
+      "selector": "#description",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}
