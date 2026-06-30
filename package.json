@@ -41,6 +41,9 @@
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
   },
+  "overrides": {
+    "encoding-sniffer": "1.0.2"
+  },
   "devDependencies": {
     "eslint": "^10.6.0",
     "prettier": "^3.9.4"

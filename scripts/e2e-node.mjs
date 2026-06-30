@@ -87,6 +87,10 @@ async function assertPackedNpmBin() {
   try {
     execFileSync("npm", ["pack", "--pack-destination", tempDir], { stdio: "inherit" });
     execFileSync("npm", ["init", "-y"], { cwd: tempDir, stdio: "ignore" });
+    execFileSync("npm", ["pkg", "set", "overrides.encoding-sniffer=1.0.2"], {
+      cwd: tempDir,
+      stdio: "ignore",
+    });
     execFileSync("npm", ["install", `./searchfetch-${packageJson.version}.tgz`], {
       cwd: tempDir,
       stdio: "inherit",

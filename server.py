@@ -1167,7 +1167,10 @@ async def webfetch(
 
 
 def main():
-    mcp.run(transport="stdio")
+    try:
+        mcp.run(transport="stdio")
+    except BrokenPipeError:
+        pass
 
 
 if __name__ == "__main__":
