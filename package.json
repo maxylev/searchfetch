@@ -25,11 +25,13 @@
     "test:js": "node --test \"*.test.js\"",
     "test:py": "uv run pytest test_*.py -v",
     "lint": "npm run lint:js && npm run lint:py",
-    "lint:js": "npx eslint \"*.js\"",
-    "lint:py": "uv run ruff check server.py test_*.py",
-    "format": "npx prettier --write \"*.js\" \"*.json\" \"*.md\" && uv run ruff format server.py test_*.py",
-    "format:check": "npx prettier --check \"*.js\" \"*.json\" \"*.md\" && uv run ruff format --check server.py test_*.py",
-    "e2e": "npm run test"
+    "lint:js": "npx eslint \"*.js\" \"scripts/*.mjs\"",
+    "lint:py": "uv run ruff check server.py scripts/*.py test_*.py",
+    "format": "npx prettier --write \"*.js\" \"scripts/*.mjs\" \"*.json\" \"*.md\" && uv run ruff format server.py scripts/*.py test_*.py",
+    "format:check": "npx prettier --check \"*.js\" \"scripts/*.mjs\" \"*.json\" \"*.md\" && uv run ruff format --check server.py scripts/*.py test_*.py",
+    "e2e": "npm run e2e:node && npm run e2e:py",
+    "e2e:node": "node scripts/e2e-node.mjs",
+    "e2e:py": "uv run python scripts/e2e-python.py"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
