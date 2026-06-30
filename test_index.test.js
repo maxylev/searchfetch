@@ -8,6 +8,10 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   loadBuiltinTemplates,
@@ -23,6 +27,7 @@ import {
   applyTransform,
   composeSections,
   composeSearchResults,
+  isMainModule,
   BUILTIN_TEMPLATES,
   TEMPLATE_MAP,
 } from "./index.js";
@@ -555,12 +560,58 @@ describe("Import without run", () => {
       "composeSections",
       "composeSearchResults",
       "genericFallback",
+      "isMainModule",
       "BUILTIN_TEMPLATES",
       "TEMPLATE_MAP",
     ];
     for (const name of expected) {
       assert.ok(imported[name] !== undefined, `Expected export '${name}' not found`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. Main guard: realpath-based argv[1] check for npx / symlink support
+// ---------------------------------------------------------------------------
+
+describe("Main guard (realpath-based)", () => {
+  const indexFile = fileURLToPath(new URL("./index.js", import.meta.url).href);
+  const indexRealPath = realpathSync(indexFile);
+
+  it("returns true for direct execution path", () => {
+    assert.equal(isMainModule(indexFile, indexRealPath), true);
+  });
+
+  it("returns true for npm/npx bin symlink path", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "searchfetch-guard-"));
+    const link = join(tmp, "searchfetch");
+
+    try {
+      symlinkSync(indexFile, link);
+      assert.equal(isMainModule(link, indexRealPath), true);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("returns false for a different executable path", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "searchfetch-guard-"));
+    const otherFile = join(tmp, "other.js");
+
+    try {
+      writeFileSync(otherFile, "// not the searchfetch entrypoint\n", "utf8");
+      assert.equal(isMainModule(otherFile, indexRealPath), false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("returns false for missing or unresolvable argv[1]", () => {
+    assert.equal(isMainModule(undefined, indexRealPath), false);
+    assert.equal(
+      isMainModule(join(tmpdir(), "definitely-missing-searchfetch-entry"), indexRealPath),
+      false,
+    );
   });
 });
 

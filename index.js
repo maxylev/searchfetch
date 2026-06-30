@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // === IMPORTS =============================================================
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -1019,7 +1019,7 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.2.0" });
+const server = new McpServer({ name: "searchfetch", version: "3.2.1" });
 
 // --- websearch tool ---
 
@@ -1224,6 +1224,7 @@ export {
   composeSections,
   composeSearchResults,
   genericFallback,
+  isMainModule,
   BUILTIN_TEMPLATES,
   TEMPLATE_MAP,
 };
@@ -1248,6 +1249,15 @@ function redirectStartupOutputToStderr() {
   };
 }
 
+function isMainModule(argvPath = process.argv[1], modulePath = __filename) {
+  if (!argvPath) return false;
+  try {
+    return realpathSync(argvPath) === realpathSync(modulePath);
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   process.on("SIGINT", cleanup);
   process.on("SIGTERM", cleanup);
@@ -1259,8 +1269,10 @@ async function main() {
   await server.connect(transport);
 }
 
-// Guard: only start server when run directly, not when imported
-const isMain = process.argv[1] === __filename;
+// Guard: only start server when run directly (including via npm bin symlink),
+// not when imported. Uses realpath so that `npx` / `node_modules/.bin`
+// symlinks resolve to the module file correctly.
+const isMain = isMainModule();
 if (isMain) {
   main().catch((_err) => {
     process.exit(1);
