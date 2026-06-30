@@ -5,7 +5,6 @@ Run with: uv run pytest test_templates.py -v
 
 import json
 import re
-import sys
 from pathlib import Path
 
 import pytest
@@ -286,8 +285,6 @@ class TestTemplateOrdering:
     def test_docs_rs_not_matched_by_docs_page(self):
         """A docs.rs URL should match docs-rs first, not docs-page (ensuring ordering works)."""
         url = "https://docs.rs/solana/latest/solana/"
-        docs_page = TEMPLATES_BY_NAME["docs-page"]
-        docs_rs = TEMPLATES_BY_NAME["docs-rs"]
 
         matched = None
         for t in ALL_TEMPLATES:
@@ -300,9 +297,7 @@ class TestTemplateOrdering:
             if matched:
                 break
 
-        assert matched == "docs-rs", (
-            f"Expected docs-rs to match first for '{url}', got '{matched}'"
-        )
+        assert matched == "docs-rs", f"Expected docs-rs to match first for '{url}', got '{matched}'"
 
 
 # ---------------------------------------------------------------------------
@@ -377,15 +372,11 @@ class TestSourceUrlResolution:
 
     def test_no_source_url_for_docs_rs(self):
         t = TEMPLATES_BY_NAME["docs-rs"]
-        assert "source_url" not in t, (
-            "docs.rs does not have raw markdown endpoints"
-        )
+        assert "source_url" not in t, "docs.rs does not have raw markdown endpoints"
 
     def test_no_source_url_for_docker_hub(self):
         t = TEMPLATES_BY_NAME["docker-hub"]
-        assert "source_url" not in t, (
-            "Docker Hub does not have raw markdown endpoints"
-        )
+        assert "source_url" not in t, "Docker Hub does not have raw markdown endpoints"
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +446,9 @@ class TestMarkdownDetection:
 
 class TestTwoslashStripping:
     def test_strips_twoslash_cache_lines(self):
-        content = "# Title\n\nSome text\n@twoslash-cache: abcdef1234567890abcdef1234567890\nMore text"
+        content = (
+            "# Title\n\nSome text\n@twoslash-cache: abcdef1234567890abcdef1234567890\nMore text"
+        )
         result = _strip_source_markdown(content)
         assert "@twoslash-cache:" not in result
         assert "# Title" in result
@@ -494,6 +487,7 @@ class TestTwoslashStripping:
 def _has_bs4():
     try:
         import bs4  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -548,7 +542,8 @@ class TestHtmlExtraction:
     <html>
     <head>
       <title>postgres - Docker Hub</title>
-      <meta name="description" content="The PostgreSQL object-relational database system provides reliability and data integrity.">
+      <meta name="description"
+            content="PostgreSQL object-relational database with reliability and data integrity.">
     </head>
     <body>
       <header><!-- nav --></header>
@@ -662,3 +657,367 @@ class TestServerImport:
         assert callable(server._strip_source_markdown)
         assert callable(server._resolve_source_url)
         assert callable(server._fetch_source_markdown)
+
+    def test_server_version_is_set(self):
+        import server
+
+        assert server.__version__ == "3.2.0"
+
+
+# ---------------------------------------------------------------------------
+# 9. Python template helper functions (unit tests)
+# ---------------------------------------------------------------------------
+
+
+class TestPythonTransforms:
+    """Test Python transform functions from server module."""
+
+    def test_strip_transform(self):
+        import server
+
+        assert server.apply_transform("  hello  ", "strip") == "hello"
+
+    def test_decode_google_url(self):
+        import server
+
+        result = server.apply_transform("/url?q=https://example.com/page&sa=U", "decode_google_url")
+        assert result == "https://example.com/page"
+
+    def test_decode_google_url_non_match(self):
+        import server
+
+        result = server.apply_transform("https://example.com/page", "decode_google_url")
+        assert result == "https://example.com/page"
+
+    def test_decode_ddg_url(self):
+        import server
+
+        result = server.apply_transform(
+            "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com",
+            "decode_ddg_url",
+        )
+        assert result == "https://example.com"
+
+    def test_json_parse(self):
+        import server
+
+        result = server.apply_transform('{"key": "value", "num": 42}', "json_parse")
+        assert '"key"' in result
+        assert '"value"' in result
+
+    def test_resolve_href(self):
+        import server
+
+        result = server.apply_transform("/docs/api", "resolve_href", "https://example.com")
+        assert result == "https://example.com/docs/api"
+
+    def test_resolve_href_absolute_unchanged(self):
+        import server
+
+        result = server.apply_transform(
+            "https://other.com/page", "resolve_href", "https://example.com"
+        )
+        assert result == "https://other.com/page"
+
+    def test_transform_chain(self):
+        import server
+
+        # chain: strip first, then other transforms
+        result = server.apply_transform("  hello  ", ["strip", "strip"])
+        assert result == "hello"
+
+
+class TestPythonUrlTemplateResolution:
+    """Test Python resolve_url_template function."""
+
+    def test_resolves_simple_placeholders(self):
+        import server
+
+        tmpl = {
+            "name": "test",
+            "url_template": "https://example.com/{path}",
+            "url_params": {"path": {"default": "home"}},
+        }
+        url = server.resolve_url_template(tmpl, {"path": "about"})
+        assert url == "https://example.com/about"
+
+    def test_uses_default_values(self):
+        import server
+
+        tmpl = {
+            "name": "test",
+            "url_template": "https://example.com/{page}",
+            "url_params": {"page": {"default": "index"}},
+        }
+        url = server.resolve_url_template(tmpl, {})
+        assert url == "https://example.com/index"
+
+    def test_throws_for_missing_required(self):
+        import server
+
+        tmpl = {
+            "name": "test",
+            "url_template": "https://example.com/{query}",
+            "url_params": {"query": {"required": True}},
+        }
+        with pytest.raises(ValueError, match="Required URL parameter"):
+            server.resolve_url_template(tmpl, {})
+
+    def test_url_encodes_when_specified(self):
+        import server
+
+        tmpl = {
+            "name": "test",
+            "url_template": "https://example.com/?q={query}",
+            "url_params": {"query": {"encode": "url"}},
+        }
+        url = server.resolve_url_template(tmpl, {"query": "hello world"})
+        # quote_plus uses + for spaces
+        assert "hello" in url
+        assert "%20" in url or "+" in url
+
+
+class TestPythonSearchParamMapping:
+    """Test Python map_search_params function."""
+
+    def test_duckduckgo_region(self):
+        import server
+
+        params = server.map_search_params("test query", "duckduckgo", "us-en", None)
+        assert params["query"] == "test query"
+        assert params["kl"] == "us-en"
+
+    def test_duckduckgo_safe_search_on(self):
+        import server
+
+        params = server.map_search_params("test", "duckduckgo", None, True)
+        assert params["kp"] == "1"
+
+    def test_duckduckgo_safe_search_off(self):
+        import server
+
+        params = server.map_search_params("test", "duckduckgo", None, False)
+        assert params["kp"] == "-2"
+
+    def test_google_region(self):
+        import server
+
+        params = server.map_search_params("test query", "google", "us-en", None)
+        assert params["query"] == "test query"
+        assert params["hl"] == "us"
+        assert params["gl"] == "en"
+
+    def test_google_safe_search(self):
+        import server
+
+        params = server.map_search_params("test", "google", None, True)
+        assert params["safe"] == "active"
+
+    def test_no_region_or_safesearch_when_null(self):
+        import server
+
+        params = server.map_search_params("test", "duckduckgo", None, None)
+        assert params["query"] == "test"
+        assert "kl" not in params
+        assert "kp" not in params
+
+
+class TestPythonComposition:
+    """Test Python compose_sections and compose_search_results functions."""
+
+    def test_compose_sections_empty(self):
+        import server
+
+        result = server.compose_sections([])
+        assert "(No content extracted" in result
+
+    def test_compose_sections_value(self):
+        import server
+
+        sections = [
+            {"name": "Title", "type": "value", "value": "Hello World"},
+        ]
+        result = server.compose_sections(sections)
+        assert "## Title" in result
+        assert "Hello World" in result
+
+    def test_compose_sections_multiple(self):
+        import server
+
+        sections = [
+            {"name": "Items", "type": "multiple", "items": ["A", "B", "C"]},
+        ]
+        result = server.compose_sections(sections)
+        assert "## Items" in result
+        assert "A" in result
+        assert "B" in result
+        assert "C" in result
+
+    def test_compose_search_results_formats_numbered(self):
+        import server
+
+        sections = [
+            {
+                "name": "Results",
+                "type": "search_results",
+                "items": [
+                    {
+                        "Title": "Test Page",
+                        "URL": "https://example.com",
+                        "Snippet": "A description",
+                    },
+                ],
+            },
+        ]
+        result = server.compose_search_results(sections)
+        assert "[1] Test Page" in result
+        assert "URL: https://example.com" in result
+        assert "Snippet: A description" in result
+
+    def test_compose_search_results_filters_non_http(self):
+        import server
+
+        sections = [
+            {
+                "name": "Results",
+                "type": "search_results",
+                "items": [
+                    {"Title": "Internal", "URL": "/internal", "Snippet": ""},
+                ],
+            },
+        ]
+        result = server.compose_search_results(sections)
+        assert "URL:" not in result
+
+    def test_compose_search_results_filters_google_internal(self):
+        import server
+
+        sections = [
+            {
+                "name": "Results",
+                "type": "search_results",
+                "items": [
+                    {
+                        "Title": "Google Link",
+                        "URL": "https://www.google.com/search?q=test",
+                        "Snippet": "desc",
+                    },
+                ],
+            },
+        ]
+        result = server.compose_search_results(sections)
+        assert "URL:" not in result
+
+    def test_compose_search_results_falls_back_to_sections(self):
+        import server
+
+        sections = [
+            {"name": "Title", "type": "value", "value": "Fallback content"},
+        ]
+        result = server.compose_search_results(sections)
+        assert "Fallback content" in result
+
+
+class TestPythonPageTemplateResolution:
+    """Test Python resolve_page_template function."""
+
+    def test_auto_detects_by_url(self):
+        import server
+
+        tmpl, name = server.resolve_page_template("https://docs.rs/tokio/latest/tokio/", "auto")
+        assert tmpl is not None
+        assert name == "docs-rs"
+
+    def test_named_builtin(self):
+        import server
+
+        tmpl, name = server.resolve_page_template("https://example.com/some-page", "npm-package")
+        assert tmpl is not None
+        assert name == "npm-package"
+
+    def test_returns_fallback_for_unmatched_auto(self):
+        import server
+
+        tmpl, name = server.resolve_page_template("https://example.com/random-page", "auto")
+        assert tmpl is None
+        assert "fallback" in name.lower()
+
+    def test_throws_for_unknown_named_template(self):
+        import server
+
+        with pytest.raises(ValueError, match="Unknown template"):
+            server.resolve_page_template("https://example.com", "nonexistent-template")
+
+    def test_inline_json_template(self):
+        import server
+
+        tmpl, name = server.resolve_page_template(
+            "https://example.com",
+            '{"name": "custom", "sections": [], "url_patterns": []}',
+        )
+        assert tmpl is not None
+        assert tmpl["name"] == "custom"
+        assert name == "custom"
+
+    def test_inline_json_parse_error(self):
+        import server
+
+        with pytest.raises(ValueError, match="Invalid inline JSON"):
+            server.resolve_page_template("https://example.com", "{not valid json")
+
+
+class TestPythonSelectHelpers:
+    """Test Python _select_first and _select_one_first utility functions."""
+
+    def test_select_first_with_results(self):
+        from bs4 import BeautifulSoup
+
+        import server
+
+        soup = BeautifulSoup("<div><p>Hello</p><p>World</p></div>", "html.parser")
+        results = server._select_first(soup, "p")
+        assert len(results) == 2
+        assert results[0].get_text() == "Hello"
+
+    def test_select_first_empty_selector_returns_parent(self):
+        from bs4 import BeautifulSoup
+
+        import server
+
+        soup = BeautifulSoup("<div>content</div>", "html.parser")
+        results = server._select_first(soup, "")
+        assert len(results) == 1
+        assert results[0] is soup
+
+    def test_select_first_no_results(self):
+        from bs4 import BeautifulSoup
+
+        import server
+
+        soup = BeautifulSoup("<div><p>Hello</p></div>", "html.parser")
+        results = server._select_first(soup, "h1")
+        assert len(results) == 0
+
+    def test_select_one_first(self):
+        from bs4 import BeautifulSoup
+
+        import server
+
+        soup = BeautifulSoup("<div><p>Hello</p></div>", "html.parser")
+        result = server._select_one_first(soup, "p")
+        assert result is not None
+        assert result.get_text() == "Hello"
+
+
+class TestPythonMetadata:
+    """Test Python server version and metadata."""
+
+    def test_version_is_3_2_0(self):
+        import server
+
+        assert server.__version__ == "3.2.0"
+
+    def test_server_name_is_searchfetch(self):
+        import server
+
+        assert server.mcp.name == "searchfetch"

@@ -1,13 +1,5 @@
 #!/usr/bin/env node
 
-// === STDOUT/STDERR REDIRECTION ===========================================
-const originalStdoutWrite = process.stdout.write.bind(process.stdout);
-process.stdout.write = (chunk, encoding, callback) => {
-  return process.stderr.write(chunk, encoding, callback);
-};
-console.log = (...args) => console.error(...args);
-console.info = (...args) => console.error(...args);
-
 // === IMPORTS =============================================================
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -70,8 +62,6 @@ const cleanup = async () => {
   await browserManager.close();
   process.exit(0);
 };
-process.on("SIGINT", cleanup);
-process.on("SIGTERM", cleanup);
 
 // === TURNDOWN ============================================================
 const turndown = new TurndownService({
@@ -91,19 +81,13 @@ function loadBuiltinTemplates() {
   try {
     files = readdirSync(TEMPLATES_DIR);
   } catch (err) {
-    throw new Error(
-      `Cannot read templates directory '${TEMPLATES_DIR}': ${err.message}`,
-    );
+    throw new Error(`Cannot read templates directory '${TEMPLATES_DIR}': ${err.message}`);
   }
 
-  const jsonFiles = files
-    .filter((f) => f.endsWith(".json"))
-    .sort();
+  const jsonFiles = files.filter((f) => f.endsWith(".json")).sort();
 
   if (jsonFiles.length === 0) {
-    throw new Error(
-      `No template JSON files found in '${TEMPLATES_DIR}'`,
-    );
+    throw new Error(`No template JSON files found in '${TEMPLATES_DIR}'`);
   }
 
   const templates = [];
@@ -114,14 +98,10 @@ function loadBuiltinTemplates() {
     try {
       template = JSON.parse(content);
     } catch (err) {
-      throw new Error(
-        `Invalid JSON in template file '${filePath}': ${err.message}`,
-      );
+      throw new Error(`Invalid JSON in template file '${filePath}': ${err.message}`);
     }
     if (!template.name || typeof template.name !== "string") {
-      throw new Error(
-        `Template file '${filePath}' is missing a valid "name" field`,
-      );
+      throw new Error(`Template file '${filePath}' is missing a valid "name" field`);
     }
     templates.push(template);
   }
@@ -144,9 +124,7 @@ function getTemplateByName(name) {
   const t = TEMPLATE_MAP.get(name);
   if (!t) {
     const names = [...TEMPLATE_MAP.keys()].join(", ");
-    throw new Error(
-      `Unknown template '${name}'. Available: ${names}`,
-    );
+    throw new Error(`Unknown template '${name}'. Available: ${names}`);
   }
   return t;
 }
@@ -159,8 +137,9 @@ function detectTemplateByUrl(url) {
         if (new RegExp(pattern).test(url)) {
           return template;
         }
-      } catch (_) {
-        // Skip invalid regex
+      } catch (_invalidRegex) {
+        // Invalid URL patterns are tolerated — templates may contain
+        // broad patterns that don't compile correctly in every context.
       }
     }
   }
@@ -205,7 +184,10 @@ function resolveUrlTemplate(template, providedParams) {
   }
 
   // Remove any remaining unreplaced placeholders
-  url = url.replace(/\{\w+\}/g, "").replace(/&{2,}/g, "&").replace(/\?&/, "?");
+  url = url
+    .replace(/\{\w+\}/g, "")
+    .replace(/&{2,}/g, "&")
+    .replace(/\?&/, "?");
 
   return url;
 }
@@ -301,7 +283,8 @@ function isAccessDenied($) {
     "access denied",
   ];
 
-  if (bodyText.length < 1200 && bodyDenyPatterns.some((pattern) => bodyText.includes(pattern))) return true;
+  if (bodyText.length < 1200 && bodyDenyPatterns.some((pattern) => bodyText.includes(pattern)))
+    return true;
 
   return false;
 }
@@ -386,10 +369,7 @@ async function fetchHtmlWithRetry(url, template, blockMedia) {
       return await fetchHtml(url, template, blockMedia);
     } catch (err) {
       lastError = err;
-      if (
-        attempt < FETCH_MAX_ATTEMPTS - 1 &&
-        err.httpStatus === 429
-      ) {
+      if (attempt < FETCH_MAX_ATTEMPTS - 1 && err.httpStatus === 429) {
         await sleep(err.retryAfterMs ?? HTTP_429_RETRY_DELAY_MS);
         continue;
       }
@@ -505,7 +485,13 @@ async function fetchSourceMarkdown(sourceUrl, template, blockMedia) {
 // === HTML CLEANUP ========================================================
 
 const DEFAULT_REMOVE_SELECTORS = [
-  "script", "style", "svg", "nav", "footer", "noscript", "iframe",
+  "script",
+  "style",
+  "svg",
+  "nav",
+  "footer",
+  "noscript",
+  "iframe",
   ".advertisement",
 ];
 
@@ -518,8 +504,9 @@ function applyRemove($, template) {
   for (const selector of removeSelectors) {
     try {
       $(selector).remove();
-    } catch (_) {
-      // Skip invalid selectors
+    } catch (_invalidSelector) {
+      // Invalid remove selectors are tolerated — templates can express
+      // broad cleanup rules that don't apply to every page.
     }
   }
 
@@ -716,9 +703,7 @@ function extractChildSection($, $parentEl, section, origin) {
 
   if (!elements || elements.length === 0) {
     if (section.required) {
-      throw new Error(
-        `Required section '${section.name}' not found on page.`,
-      );
+      throw new Error(`Required section '${section.name}' not found on page.`);
     }
     return null;
   }
@@ -737,9 +722,7 @@ function extractSection($, section, context) {
 
   if (!elements || elements.length === 0) {
     if (section.required) {
-      throw new Error(
-        `Required section '${section.name}' not found on page.`,
-      );
+      throw new Error(`Required section '${section.name}' not found on page.`);
     }
     return null;
   }
@@ -825,13 +808,13 @@ function extractTemplate($, template, context) {
         results.push(result);
       }
     } catch (err) {
-      if (
-        err.message &&
-        err.message.includes("Required section")
-      ) {
+      // Required-section errors must surface to the user.
+      if (err.message && err.message.includes("Required section")) {
         throw err;
       }
-      // Non-required failures are silently skipped
+      // Non-required extraction failures: selector mismatches or format
+      // processing issues. Broad templates legitimately don't match every
+      // section on every page — skip and continue.
     }
   }
 
@@ -877,8 +860,7 @@ function composeSections(extracted, template, startIndex, maxLength) {
         if (isCommentStyle(result)) {
           const commentParts = [];
           for (const item of result.items) {
-            const author =
-              item["Author"] || item["author"] || item["User"] || item["user"] || "";
+            const author = item["Author"] || item["author"] || item["User"] || item["user"] || "";
             const comment =
               item["Comment"] || item["Body"] || item["comment"] || item["body"] || "";
             if (author) {
@@ -888,9 +870,7 @@ function composeSections(extracted, template, startIndex, maxLength) {
             }
           }
           if (commentParts.length > 0) {
-            parts.push(
-              `## ${result.section.name}\n\n${commentParts.join("\n\n---\n\n")}`,
-            );
+            parts.push(`## ${result.section.name}\n\n${commentParts.join("\n\n---\n\n")}`);
           }
         } else {
           const itemParts = [];
@@ -904,9 +884,7 @@ function composeSections(extracted, template, startIndex, maxLength) {
             if (lines.length > 0) itemParts.push(lines.join("\n"));
           }
           if (itemParts.length > 0) {
-            parts.push(
-              `## ${result.section.name}\n\n${itemParts.join("\n\n")}`,
-            );
+            parts.push(`## ${result.section.name}\n\n${itemParts.join("\n\n")}`);
           }
         }
       }
@@ -949,12 +927,9 @@ function composeSearchResults(extracted) {
     const item = items[i];
     const num = i + 1;
 
-    const title =
-      item["Title"] || item["title"] || Object.values(item)[0] || "";
-    const url =
-      item["URL"] || item["url"] || item["Url"] || "";
-    const snippet =
-      item["Snippet"] || item["snippet"] || "";
+    const title = item["Title"] || item["title"] || Object.values(item)[0] || "";
+    const url = item["URL"] || item["url"] || item["Url"] || "";
+    const snippet = item["Snippet"] || item["snippet"] || "";
 
     // Filter out non-http URLs and google internal links
     let cleanUrl = url;
@@ -963,8 +938,7 @@ function composeSearchResults(extracted) {
     }
     if (
       cleanUrl &&
-      (cleanUrl.includes("google.com/search") ||
-        cleanUrl.includes("support.google.com"))
+      (cleanUrl.includes("google.com/search") || cleanUrl.includes("support.google.com"))
     ) {
       cleanUrl = ""; // Skip google internal links
     }
@@ -1029,19 +1003,14 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
   }
 
   if (!template.url_template) {
-    throw new Error(
-      `Template '${template.name}' is not a search template (no url_template).`,
-    );
+    throw new Error(`Template '${template.name}' is not a search template (no url_template).`);
   }
 
   const params = mapSearchParams(engine, query, region, safeSearch);
   let url = resolveUrlTemplate(template, params);
 
   // Google safe_search: append safe=active to URL
-  if (
-    (engine === "google" || templateName === "google-search") &&
-    safeSearch === true
-  ) {
+  if ((engine === "google" || templateName === "google-search") && safeSearch === true) {
     url += "&safe=active";
   }
 
@@ -1050,7 +1019,7 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.0.1" });
+const server = new McpServer({ name: "searchfetch", version: "3.2.0" });
 
 // --- websearch tool ---
 
@@ -1097,12 +1066,7 @@ server.registerTool(
   async ({ query, engine, region, safe_search, max_results, block_media }) => {
     try {
       // 1. Resolve search template (+ url_params mapping + url building)
-      const { template, url } = resolveSearchTemplate(
-        engine,
-        query,
-        region,
-        safe_search,
-      );
+      const { template, url } = resolveSearchTemplate(engine, query, region, safe_search);
 
       // 2. Fetch
       const html = await fetchHtmlWithRetry(url, template, block_media);
@@ -1143,27 +1107,20 @@ server.registerTool(
     description:
       "Fetch and extract the main text content from any webpage. Fully executes JavaScript to load React/SPAs and aggressively strips images/media (including base64) to save context tokens.",
     inputSchema: z.object({
-      url: z.string().describe(
-        "The full URL of the webpage to fetch (must start with http/https).",
-      ),
+      url: z
+        .string()
+        .describe("The full URL of the webpage to fetch (must start with http/https)."),
       template: z
         .string()
         .default("auto")
         .describe(
           "Template to use: 'auto' (auto-detect from URL), a built-in name, or inline JSON.",
         ),
-      start_index: z
-        .number()
-        .default(0)
-        .describe(
-          "Character offset for pagination. Default: 0.",
-        ),
+      start_index: z.number().default(0).describe("Character offset for pagination. Default: 0."),
       max_length: z
         .number()
         .default(10000)
-        .describe(
-          "Maximum characters to return per request. Default is 10000.",
-        ),
+        .describe("Maximum characters to return per request. Default is 10000."),
       block_media: z
         .boolean()
         .default(true)
@@ -1203,8 +1160,7 @@ server.registerTool(
           `\n\n---\n[webfetch: template="${template ? template.name : "auto"}" (source markdown), ` +
           `showing characters ${start_index} to ${start_index + paginated.length} of ${totalLength} total.`;
         if (start_index + max_length < totalLength) {
-          metadata +=
-            ` Use start_index=${start_index + max_length} to read more.`;
+          metadata += ` Use start_index=${start_index + max_length} to read more.`;
         }
         metadata += "]";
         return { content: [{ type: "text", text: paginated + metadata }] };
@@ -1242,15 +1198,71 @@ server.registerTool(
   },
 );
 
+// === EXPORTS (for testing without starting server) =========================
+
+export {
+  loadBuiltinTemplates,
+  getTemplateByName,
+  detectTemplateByUrl,
+  resolveUrlTemplate,
+  resolveEngineToTemplateName,
+  mapSearchParams,
+  resolveSearchTemplate,
+  isMarkdownContent,
+  stripSourceMarkdown,
+  resolveSourceUrl,
+  parseRetryAfterMs,
+  isAccessDenied,
+  findScoped,
+  findFirstMatch,
+  resolveTopElements,
+  applyTransform,
+  extractValue,
+  extractChildSection,
+  extractSection,
+  extractTemplate,
+  composeSections,
+  composeSearchResults,
+  genericFallback,
+  BUILTIN_TEMPLATES,
+  TEMPLATE_MAP,
+};
+
 // === MAIN =================================================================
 
+function redirectStartupOutputToStderr() {
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalConsoleLog = console.log;
+  const originalConsoleInfo = console.info;
+
+  process.stdout.write = (chunk, encoding, callback) => {
+    return process.stderr.write(chunk, encoding, callback);
+  };
+  console.log = (...args) => console.error(...args);
+  console.info = (...args) => console.error(...args);
+
+  return () => {
+    process.stdout.write = originalStdoutWrite;
+    console.log = originalConsoleLog;
+    console.info = originalConsoleInfo;
+  };
+}
+
 async function main() {
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+
+  const restoreStdout = redirectStartupOutputToStderr();
   await ensureBinary();
-  process.stdout.write = originalStdoutWrite;
+  restoreStdout();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  process.exit(1);
-});
+// Guard: only start server when run directly, not when imported
+const isMain = process.argv[1] === __filename;
+if (isMain) {
+  main().catch((_err) => {
+    process.exit(1);
+  });
+}

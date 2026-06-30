@@ -1,23 +1,25 @@
 # SearchFetch (MCP Server)
 
-A maximum fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built specifically for AI Agents (Cursor, Claude Code, OpenCode), it completely bypasses bot detection (Cloudflare Turnstile, Datadome), dynamically handles SPAs/React, and converts bloat into token-optimized Markdown.
+A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built for AI Agents (Cursor, Claude Code, OpenCode), it uses a stealth browser engine to fetch pages, dynamically handles SPAs/React, and converts bloat into token-optimized Markdown.
 
 ## Features
-* **Maximum Fault Tolerance:** Implements auto-healing browser sessions, grace-period timeouts for clunky SPAs, and network-level aborting of tracking scripts and media.
-* **Stealth Engine:** Powered by CloakBrowser C++ patches + `humanize` logic. Antibot systems score it as a normal browser because it mathematically moves and renders exactly like one.
-* **Nuclear Token Scrubber:** Strips Base64 images, SVGs, scripts, and inline styles out of the DOM *before* Markdown conversion, guaranteeing your LLM context window won't blow out.
-* **Dual Execution Paths:** Natively supports zero-install execution via both Python (`uvx`) and Node.js (`npx`).
+
+- **Stealth Engine:** Powered by CloakBrowser C++ patches + `humanize` logic. The browser renders and moves like a real user, reducing bot-detection scores.
+- **Fault Tolerance:** Auto-healing browser sessions, grace-period timeouts for SPAs, and network-level blocking of tracking scripts and media.
+- **Token-Optimized Output:** Strips base64 images, SVGs, scripts, and inline styles from the DOM _before_ Markdown conversion.
+- **Dual Runtime:** Natively supports zero-install execution via both Python (`uvx`) and Node.js (`npx`).
+- **Template-Driven Extraction:** Structured extraction via shared JSON templates (GitHub, npm, PyPI, crates.io, docs pages, Docker Hub, and more). Supports custom inline templates.
 
 ---
 
 ## Usage & Installation
 
-You do not need to install this repository manually. Configure your agent to use the zero-install commands `npx` or `uvx` depending on your environment.
+You do not need to install this repository manually. Configure your agent to use the zero-install commands `npx` or `uvx`.
 
 ### Claude Desktop Configuration
-Add the following to your config:
 
-**Option A: Using Python (`uvx` - Recommended)**
+**Option A: Python (`uvx` - Recommended)**
+
 ```json
 {
   "mcpServers": {
@@ -29,7 +31,8 @@ Add the following to your config:
 }
 ```
 
-**Option B: Using Node.js (`npx`)**
+**Option B: Node.js (`npx`)**
+
 ```json
 {
   "mcpServers": {
@@ -42,55 +45,75 @@ Add the following to your config:
 ```
 
 ### Cursor / IDE Configuration
-Add it via the **MCP panel** in Cursor settings:
-* **Type:** `command`
-* **Command:** `uvx searchfetch` (or `npx -y searchfetch`)
+
+Add via the **MCP panel** in Cursor settings:
+
+- **Type:** `command`
+- **Command:** `uvx searchfetch` (or `npx -y searchfetch`)
 
 ---
 
 ## Available Tools
 
 ### 1. `websearch`
-Searches the web through the v3 template pipeline. DuckDuckGo and Google are built-in templates, and custom search templates can be selected by name.
 
-**Parameters:**
-* **`query`** *(string, required)*: The search query string.
-* **`engine`** *(string, optional)*: Search engine/template to use. Can be `"duckduckgo"`, `"google"`, or a custom search template name. Default is `"duckduckgo"`.
-* **`max_results`** *(number, optional)*: Maximum number of results to return. Default is `10`.
-* **`region`** *(string/null, optional)*: Region and language code to localize search results. 
-  * Examples: `"us-en"`, `"uk-en"`, `"de-de"`. 
-  * For DuckDuckGo, it maps directly. 
-  * For Google, it maps to the `gl` (country) and `hl` (language) query parameters automatically.
-  * `null` uses the template default.
-* **`safe_search`** *(boolean/null, optional)*: Enable safe search. Maps to DuckDuckGo/Google parameters automatically; `null` uses the template default.
-* **`block_media`** *(boolean, optional)*: Block images, media, and fonts at the network layer. Default is `true`.
+Search the web through the template pipeline. DuckDuckGo and Google are built-in; custom search templates can be selected by name.
+
+| Parameter     | Type         | Default        | Description                                                                                    |
+| ------------- | ------------ | -------------- | ---------------------------------------------------------------------------------------------- |
+| `query`       | string       | _required_     | The search query string.                                                                       |
+| `engine`      | string       | `"duckduckgo"` | `"duckduckgo"`, `"google"`, or a custom search template name.                                  |
+| `max_results` | number       | `10`           | Maximum number of results to return.                                                           |
+| `region`      | string/null  | `null`         | Region/language code (e.g. `"us-en"`, `"de-de"`). DDG maps directly; Google maps to `gl`/`hl`. |
+| `safe_search` | boolean/null | `null`         | Enable safe search. `null` uses the template default.                                          |
+| `block_media` | boolean      | `true`         | Block images, media, and fonts at the network layer.                                           |
 
 ### 2. `webfetch`
-Fetches a page with CloakBrowser and extracts structured Markdown using a named, inline, or auto-detected template. Built-ins include GitHub repositories/issues, npm, PyPI, crates.io, and ReadTheDocs-style docs pages. Unknown pages fall back to generic Markdown extraction.
 
-**Parameters:**
-* **`url`** *(string, required)*: The full URL of the webpage to fetch (must start with http/https).
-* **`template`** *(string, optional)*: `"auto"`, a built-in template name, or inline JSON template. Default is `"auto"`.
-* **`start_index`** *(number, optional)*: Character offset to start reading from for pagination. Use this if a document is too large to fit in the context window. Default is `0`.
-* **`max_length`** *(number, optional)*: Maximum characters to return per request. Default is `10000`.
-* **`block_media`** *(boolean, optional)*: Block images, videos, and fonts entirely at the network layer to drastically speed up page loads and dodge tracking pixels. Default is `true`.
+Fetch a page with the stealth browser and extract structured Markdown using a template. Falls back to generic Markdown extraction for unknown pages.
 
-Template extraction supports `text`, `markdown`, `attribute`, and `html` sections; nested children; repeated sections; URL decoding transforms; per-template cookies; and per-template resource blocking.
+| Parameter     | Type    | Default    | Description                                           |
+| ------------- | ------- | ---------- | ----------------------------------------------------- |
+| `url`         | string  | _required_ | Full URL (must start with `http`/`https`).            |
+| `template`    | string  | `"auto"`   | `"auto"`, a built-in name, or inline JSON template.   |
+| `start_index` | number  | `0`        | Character offset for pagination.                      |
+| `max_length`  | number  | `10000`    | Maximum characters per request.                       |
+| `block_media` | boolean | `true`     | Block images, videos, and fonts at the network layer. |
 
-Built-in templates live in `templates/*.json` and are shared by the Node.js and Python implementations. Each JSON file defines exactly one template — no duplication between languages.
+Template extraction supports `text`, `markdown`, `attribute`, and `html` formats; nested children; repeated sections; URL-decoding transforms; per-template cookies; and per-template resource blocking.
+
+Built-in templates live in `templates/*.json` and are shared by the Node.js and Python implementations.
 
 ---
 
-## Architecture & Contributions
-This repository utilizes a flat dual-manifest file structure (`package.json` and `pyproject.toml` in the root). When committing changes, ensure parity between `index.js` and `server.py` logic.
+## Local Development
 
-### Local Development
 ```bash
-# Node.js Testing
-npm i
-npm run inspector-js
+# Install dependencies
+npm install
+pip install -e ".[dev]"
 
-# Python Testing
-pip install -e .
-npm run inspector-py
+# Run tests
+npm test                # runs all tests (JS + Python)
+npm run test:js         # Node.js unit tests (built-in test runner)
+npm run test:py         # Python unit tests (pytest)
+
+# Lint
+npm run lint            # runs all linters
+npm run lint:js         # ESLint
+npm run lint:py         # Ruff
+
+# Format
+npm run format          # auto-format all source files
+npm run format:check    # check formatting without changes
+
+# MCP inspector (for manual testing)
+npm run inspector-js    # test with MCP Inspector (Node.js)
+npm run inspector-py    # test with MCP Inspector (Python)
 ```
+
+---
+
+## Architecture
+
+This repository uses a flat dual-manifest structure (`package.json` and `pyproject.toml` in the root). Both runtimes (`index.js` for Node, `server.py` for Python) share the same `templates/*.json` files and maintain feature parity.

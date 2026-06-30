@@ -1,6 +1,6 @@
 {
   "name": "searchfetch",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
@@ -20,14 +20,27 @@
   "scripts": {
     "start": "node ./index.js",
     "inspector-js": "npx @modelcontextprotocol/inspector node ./index.js",
-    "inspector-py": "npx @modelcontextprotocol/inspector uv run python ./server.py"
+    "inspector-py": "npx @modelcontextprotocol/inspector uv run python ./server.py",
+    "test": "npm run test:js && npm run test:py",
+    "test:js": "node --test \"*.test.js\"",
+    "test:py": "uv run pytest test_*.py -v",
+    "lint": "npm run lint:js && npm run lint:py",
+    "lint:js": "npx eslint \"*.js\"",
+    "lint:py": "uv run ruff check server.py test_*.py",
+    "format": "npx prettier --write \"*.js\" \"*.json\" \"*.md\" && uv run ruff format server.py test_*.py",
+    "format:check": "npx prettier --check \"*.js\" \"*.json\" \"*.md\" && uv run ruff format --check server.py test_*.py",
+    "e2e": "npm run test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "cheerio": "^1.2.0",
-    "cloakbrowser": "^0.3.31",
-    "playwright-core": "^1.60.0",
+    "cloakbrowser": "^0.4.5",
+    "playwright-core": "^1.61.1",
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.4"
   }
 }

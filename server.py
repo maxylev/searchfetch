@@ -11,6 +11,8 @@ from markdownify import markdownify as md
 from mcp.server.fastmcp import FastMCP
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
+__version__ = "3.2.0"
+
 mcp = FastMCP("searchfetch")
 
 # ---------------------------------------------------------------------------
@@ -138,9 +140,7 @@ def _tf_decode_ddg_url(value, _origin):
     """If value contains /l/?uddg=, extract and URL-decode the uddg parameter."""
     if isinstance(value, str) and "/l/?uddg=" in value:
         try:
-            params = dict(
-                urllib.parse.parse_qsl(urllib.parse.urlsplit(value).query)
-            )
+            params = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(value).query))
             return urllib.parse.unquote(str(params.get("uddg", value)))
         except Exception:
             return value
@@ -193,6 +193,7 @@ def apply_transform(value, transform, origin=""):
 # Built-in templates (loaded from templates/*.json at startup)
 # ---------------------------------------------------------------------------
 
+
 def _load_builtin_templates():
     """Load built-in template JSON files from disk.
 
@@ -218,30 +219,22 @@ def _load_builtin_templates():
 
     if templates_dir is None:
         searched = "', '".join(str(p) for p in search_paths[:2])
-        raise FileNotFoundError(
-            f"Templates directory not found. Searched: '{searched}'"
-        )
+        raise FileNotFoundError(f"Templates directory not found. Searched: '{searched}'")
 
     json_files = sorted(templates_dir.glob("*.json"))
     if not json_files:
-        raise FileNotFoundError(
-            f"No template JSON files (*.json) found in '{templates_dir}'"
-        )
+        raise FileNotFoundError(f"No template JSON files (*.json) found in '{templates_dir}'")
 
     raw_templates = []
     for filepath in json_files:
         try:
             data = json.loads(filepath.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
-            raise ValueError(
-                f"Invalid JSON in template file '{filepath}': {exc}"
-            ) from exc
+            raise ValueError(f"Invalid JSON in template file '{filepath}': {exc}") from exc
 
         name = data.get("name")
         if not name or not isinstance(name, str):
-            raise ValueError(
-                f"Template file '{filepath}' is missing a valid 'name' field"
-            )
+            raise ValueError(f"Template file '{filepath}' is missing a valid 'name' field")
         raw_templates.append(data)
 
     # Sort by "order" field for deterministic URL-pattern matching
@@ -273,9 +266,7 @@ def resolve_search_template(engine: str):
     return engine  # custom name
 
 
-def map_search_params(
-    query: str, engine: str, region: str | None, safe_search: bool | None
-):
+def map_search_params(query: str, engine: str, region: str | None, safe_search: bool | None):
     """Map universal websearch params to engine-specific url_params dict."""
     params = {"query": query}
 
@@ -308,9 +299,7 @@ def resolve_url_template(template: dict, provided_params: dict) -> str:
     """
     url_template = template.get("url_template")
     if not url_template:
-        raise ValueError(
-            f"Template '{template.get('name', 'unknown')}' has no url_template."
-        )
+        raise ValueError(f"Template '{template.get('name', 'unknown')}' has no url_template.")
 
     url_params = template.get("url_params", {})
     resolved = url_template
@@ -371,9 +360,7 @@ def resolve_page_template(url: str, template_arg: str):
 
     # Named template not found
     available = sorted(BUILTIN_TEMPLATES.keys())
-    raise ValueError(
-        f"Unknown template '{template_arg}'. Available: {', '.join(available)}"
-    )
+    raise ValueError(f"Unknown template '{template_arg}'. Available: {', '.join(available)}")
 
 
 # ---------------------------------------------------------------------------
@@ -413,9 +400,7 @@ def _resolve_source_url(source_template: str, url: str) -> str:
     return source_template.replace("{url}", url)
 
 
-async def _fetch_source_markdown(
-    source_url: str, template: dict | None, block_media: bool
-):
+async def _fetch_source_markdown(source_url: str, template: dict | None, block_media: bool):
     """Try fetching a page as raw markdown source text.
 
     Returns the stripped text if it looks like markdown, None otherwise.
@@ -424,9 +409,7 @@ async def _fetch_source_markdown(
     context, page = await _new_fetch_page(browser, template, block_media)
     try:
         try:
-            response = await page.goto(
-                source_url, wait_until="domcontentloaded", timeout=10000
-            )
+            response = await page.goto(source_url, wait_until="domcontentloaded", timeout=10000)
         except Exception:
             return None
 
@@ -474,9 +457,7 @@ ACCESS_DENIED_BODY_TRIGGERS = [
     "to continue, please type the characters",
 ]
 
-_ACCESS_DENIED_RE = re.compile(
-    "|".join(ACCESS_DENIED_TITLE_PATTERNS), re.IGNORECASE
-)
+_ACCESS_DENIED_RE = re.compile("|".join(ACCESS_DENIED_TITLE_PATTERNS), re.IGNORECASE)
 
 
 def _detect_access_failure(http_status: int | None, soup: BeautifulSoup) -> bool:
@@ -553,9 +534,7 @@ async def _new_fetch_page(browser, template: dict | None, block_media: bool):
     return context, page
 
 
-async def fetch_html(
-    url: str, template: dict | None, block_media: bool, retry: bool = True
-):
+async def fetch_html(url: str, template: dict | None, block_media: bool, retry: bool = True):
     """Fetch page HTML through cloakbrowser.
 
     Args:
@@ -573,9 +552,7 @@ async def fetch_html(
     for attempt in range(attempts):
         try:
             try:
-                response = await page.goto(
-                    url, wait_until="networkidle", timeout=15000
-                )
+                response = await page.goto(url, wait_until="networkidle", timeout=15000)
             except PlaywrightTimeoutError:
                 response = None  # partial render is OK
 
@@ -583,7 +560,9 @@ async def fetch_html(
             if http_status in (401, 403):
                 raise HttpStatusError(http_status, url)
             if http_status == 429:
-                retry_after = _parse_retry_after(response.headers.get("retry-after"))
+                retry_after = _parse_retry_after(
+                    response.headers.get("retry-after") if response else None
+                )
                 raise HttpStatusError(http_status, url, retry_after)
 
             content = await page.content()
@@ -708,13 +687,10 @@ def extract_section(parent, section: dict, origin: str = ""):
 
                     child_el = _select_one_first(p_el, child_selector)
                     if child_el and isinstance(child_el, Tag):
-                        item[child_name] = _extract_element(
-                            child_el, child_def, origin
-                        )
+                        item[child_name] = _extract_element(child_el, child_def, origin)
                     elif child_req:
                         raise ValueError(
-                            f"Required child section '{child_name}' not found "
-                            f"inside '{name}'."
+                            f"Required child section '{child_name}' not found inside '{name}'."
                         )
                     else:
                         item[child_name] = ""
@@ -747,13 +723,10 @@ def extract_section(parent, section: dict, origin: str = ""):
                     )
                 elif child_req:
                     raise ValueError(
-                        f"Required child section '{child_name}' not found "
-                        f"inside '{name}'."
+                        f"Required child section '{child_name}' not found inside '{name}'."
                     )
                 else:
-                    child_results.append(
-                        {"name": child_name, "type": "value", "value": ""}
-                    )
+                    child_results.append({"name": child_name, "type": "value", "value": ""})
 
             return {"name": name, "type": "children", "children": child_results}
 
@@ -868,9 +841,7 @@ def _format_children_section(section_data: dict) -> str:
     name = section_data["name"]
 
     child_names = {c["name"].lower() for c in children}
-    is_threaded = "author" in child_names and (
-        "comment" in child_names or "body" in child_names
-    )
+    is_threaded = "author" in child_names and ("comment" in child_names or "body" in child_names)
 
     if is_threaded:
         # Threaded comment format: ## Comments / **author:** / body / ---
@@ -951,9 +922,7 @@ def compose_sections(sections_data: list[dict], _template_name: str = "") -> str
     return "\n\n---\n\n".join(parts)
 
 
-def compose_search_results(
-    sections_data: list[dict], _template_name: str = ""
-) -> str:
+def compose_search_results(sections_data: list[dict], _template_name: str = "") -> str:
     """Compose extracted sections into the websearch numbered-output format.
     Filters non-http URLs and Google internal links (parity with index.js)."""
     for sec in sections_data:
@@ -974,8 +943,7 @@ def compose_search_results(
                 if clean_url and not clean_url.startswith("http"):
                     clean_url = ""
                 if clean_url and (
-                    "google.com/search" in clean_url
-                    or "support.google.com" in clean_url
+                    "google.com/search" in clean_url or "support.google.com" in clean_url
                 ):
                     clean_url = ""
 
@@ -1003,14 +971,36 @@ def compose_search_results(
 
 # Per-spec default remove selectors when a template does not specify its own.
 _SPEC_DEFAULT_REMOVE = [
-    "script", "style", "svg", "nav", "footer", "noscript", "iframe", ".advertisement",
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    "noscript",
+    "iframe",
+    ".advertisement",
 ]
 
 
 DEFAULT_REMOVE_SELECTORS = [
-    "script", "style", "nav", "header", "footer", "noscript",
-    "iframe", "svg", "aside", "img", "picture", "video", "audio",
-    "canvas", "map", "area", "dialog", ".advertisement",
+    "script",
+    "style",
+    "nav",
+    "header",
+    "footer",
+    "noscript",
+    "iframe",
+    "svg",
+    "aside",
+    "img",
+    "picture",
+    "video",
+    "audio",
+    "canvas",
+    "map",
+    "area",
+    "dialog",
+    ".advertisement",
 ]
 
 
@@ -1076,8 +1066,7 @@ async def websearch(
         if template_name not in BUILTIN_TEMPLATES:
             available = sorted(BUILTIN_TEMPLATES.keys())
             raise ValueError(
-                f"Unknown search template '{template_name}'. "
-                f"Available: {', '.join(available)}"
+                f"Unknown search template '{template_name}'. Available: {', '.join(available)}"
             )
         template = BUILTIN_TEMPLATES[template_name]
 
@@ -1104,9 +1093,7 @@ async def websearch(
 
     # 6. Parse and extract
     soup = BeautifulSoup(html, "html.parser")
-    sections_data = extract_template(
-        soup, template, origin="", max_results_override=max_results
-    )
+    sections_data = extract_template(soup, template, origin="", max_results_override=max_results)
 
     # 7. Compose output
     return compose_search_results(sections_data, template.get("name", template_name))
@@ -1144,9 +1131,7 @@ async def webfetch(
     source_md = None
     if matched_template and matched_template.get("source_url"):
         source_url = _resolve_source_url(matched_template["source_url"], url)
-        source_md = await _fetch_source_markdown(
-            source_url, matched_template, block_media
-        )
+        source_md = await _fetch_source_markdown(source_url, matched_template, block_media)
 
     if source_md is not None:
         output = source_md
@@ -1170,7 +1155,7 @@ async def webfetch(
     showing_end = start_index + len(paginated)
     metadata = (
         f"\n\n---\n"
-        f"[webfetch: template=\"{template_name}\", "
+        f'[webfetch: template="{template_name}", '
         f"showing characters {start_index} to {showing_end} "
         f"of {total_length} total."
     )

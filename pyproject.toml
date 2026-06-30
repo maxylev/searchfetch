@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "searchfetch"
-version = "3.1.0"
+version = "3.2.0"
 description = "A maximum fault-tolerant, stealth-enabled MCP server for web searching and fetching."
 readme = "README.md"
 license = "MIT"
@@ -14,10 +14,16 @@ authors =[
 ]
 keywords =["mcp", "search", "fetch", "llm", "ai", "agent", "stealth"]
 dependencies =[
-    "mcp>=1.27.1",
-    "cloakbrowser>=0.3.31",
-    "beautifulsoup4>=4.12.0",
-    "markdownify>=0.11.0"
+    "mcp>=1.28.1",
+    "cloakbrowser>=0.4.5",
+    "beautifulsoup4>=4.15.0",
+    "markdownify>=1.2.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.11.0",
 ]
 
 [project.urls]
@@ -44,3 +50,14 @@ templates = [
     "templates/docs-rs.json",
     "templates/docker-hub.json",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
