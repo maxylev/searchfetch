@@ -1019,7 +1019,7 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.2.1" });
+const server = new McpServer({ name: "searchfetch", version: "3.2.2" });
 
 // --- websearch tool ---
 

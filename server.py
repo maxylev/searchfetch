@@ -11,7 +11,7 @@ from markdownify import markdownify as md
 from mcp.server.fastmcp import FastMCP
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-__version__ = "3.2.1"
+__version__ = "3.2.2"
 
 mcp = FastMCP("searchfetch")
 

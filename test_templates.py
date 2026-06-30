@@ -661,7 +661,7 @@ class TestServerImport:
     def test_server_version_is_set(self):
         import server
 
-        assert server.__version__ == "3.2.1"
+        assert server.__version__ == "3.2.2"
 
 
 # ---------------------------------------------------------------------------
@@ -1012,10 +1012,10 @@ class TestPythonSelectHelpers:
 class TestPythonMetadata:
     """Test Python server version and metadata."""
 
-    def test_version_is_3_2_1(self):
+    def test_version_is_3_2_2(self):
         import server
 
-        assert server.__version__ == "3.2.1"
+        assert server.__version__ == "3.2.2"
 
     def test_server_name_is_searchfetch(self):
         import server

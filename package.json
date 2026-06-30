@@ -1,10 +1,10 @@
 {
   "name": "searchfetch",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
-    "searchfetch": "./index.js"
+    "searchfetch": "index.js"
   },
   "files": [
     "index.js",
