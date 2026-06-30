@@ -1,6 +1,6 @@
 """Tests for searchfetch templates: JSON validity, URL matching, extraction.
 
-Run with: uv run pytest test_templates.py -v
+Run with: uv run --extra dev pytest test_templates.py -v
 """
 
 import json
@@ -661,7 +661,7 @@ class TestServerImport:
     def test_server_version_is_set(self):
         import server
 
-        assert server.__version__ == "3.2.2"
+        assert server.__version__ == "3.2.3"
 
 
 # ---------------------------------------------------------------------------
@@ -1012,10 +1012,10 @@ class TestPythonSelectHelpers:
 class TestPythonMetadata:
     """Test Python server version and metadata."""
 
-    def test_version_is_3_2_2(self):
+    def test_version_is_3_2_3(self):
         import server
 
-        assert server.__version__ == "3.2.2"
+        assert server.__version__ == "3.2.3"
 
     def test_server_name_is_searchfetch(self):
         import server
