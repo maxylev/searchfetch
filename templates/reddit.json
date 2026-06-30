@@ -1,0 +1,65 @@
+{
+  "name": "reddit",
+  "description": "Reddit post — title, content, and comments",
+  "order": 13,
+  "url_patterns": [
+    "^https?://(?:www\\.|old\\.)?reddit\\.com/r/[^/]+/comments/[^/]+"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "img",
+    "nav",
+    "footer",
+    "header",
+    ".promoted-post",
+    "shreddit-ad-post",
+    ".side",
+    ".sidebar",
+    ".footer-parent",
+    "#header",
+    ".sr-header-area",
+    ".menuarea",
+    ".linkinfo",
+    ".panestack-title",
+    ".report-button",
+    "shreddit-join-button",
+    "#overlayScrollContainer",
+    "#right-sidebar-container",
+    "#left-sidebar-container"
+  ],
+  "sections": [
+    {
+      "name": "Subreddit",
+      "selector": "a[href*='/r/'], shreddit-post a[href*='/r/']",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Title",
+      "selector": "h1, shreddit-post [slot='title']",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Author",
+      "selector": "a[href*='/user/'], shreddit-post a[href*='/user/'], [slot='authorName']",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Link",
+      "selector": "a[slot='external-anchor'], a.outbound-link, a[data-testid='outbound-link']",
+      "format": "attribute",
+      "attribute": "href",
+      "required": false
+    },
+    {
+      "name": "Content",
+      "selector": "[slot='text-body'], .text-body, .expando, .usertext-body .md",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "searchfetch",
-  "version": "3.2.3",
+  "version": "3.3.0",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {

@@ -1,0 +1,14 @@
+{
+  "name": "raw",
+  "description": "Raw page content — minimal filtering, full body as markdown (use when you need the complete page without template extraction)",
+  "order": 999,
+  "remove": [],
+  "sections": [
+    {
+      "name": "Content",
+      "selector": "body",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

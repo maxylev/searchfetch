@@ -1,0 +1,44 @@
+{
+  "name": "youtube",
+  "description": "YouTube video — title, channel, description",
+  "order": 30,
+  "url_patterns": [
+    "^https?://(?:www\\.)?(?:youtube\\.com/watch\\?v=|youtu\\.be/).+"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "img",
+    "nav",
+    "header",
+    "ytd-guide-renderer",
+    "ytd-mini-guide-renderer",
+    "#comments",
+    "#related",
+    "ytd-comments",
+    "ytd-live-chat-frame",
+    ".ytp-ad-module"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "meta[name='title']",
+      "format": "attribute",
+      "attribute": "content",
+      "required": true
+    },
+    {
+      "name": "Channel",
+      "selector": "#owner a, ytd-video-owner-renderer a, #channel-name a",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Description",
+      "selector": "#description-inline-expander, ytd-text-inline-expander, #info-container",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

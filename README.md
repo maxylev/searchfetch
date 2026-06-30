@@ -84,6 +84,13 @@ Template extraction supports `text`, `markdown`, `attribute`, and `html` formats
 
 Built-in templates live in `templates/*.json` and are shared by the Node.js and Python implementations.
 
+**Available page templates** (auto-detected by URL or selectable by name):
+`wikipedia`, `reddit`, `mdn-web-docs`, `gitlab`, `youtube`, `devto`, `go-pkg`, `javadoc`,
+`github-repo`, `github-issue`, `npm-package`, `pypi-package`, `crates-package`,
+`docker-hub`, `docs-rs`, `docs-page`
+
+**`raw`** — special template that applies minimal filtering and returns full body content as markdown. Use when you need the complete page without template-specific extraction.
+
 ---
 
 ## Local Development

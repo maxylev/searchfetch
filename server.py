@@ -11,7 +11,7 @@ from markdownify import markdownify as md
 from mcp.server.fastmcp import FastMCP
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-__version__ = "3.2.3"
+__version__ = "3.3.0"
 
 mcp = FastMCP("searchfetch")
 
@@ -1108,14 +1108,25 @@ async def webfetch(
     block_media: bool = True,
 ) -> str:
     """
-    Fetch a webpage and extract structured information using templates.
+    Fetch and extract the main text content from any webpage. Fully executes
+    JavaScript to load React/SPAs and aggressively strips images/media
+    (including base64) to save context tokens.
 
     Args:
-        url: The full URL to fetch.
-        template: "auto", a built-in name, or inline JSON. Default: "auto".
+        url: The full URL of the webpage to fetch (must start with http/https).
+        template: Template to use: 'auto' (auto-detect from URL), a built-in
+                  page template name (see list below), 'raw' for
+                  minimal-filtering full-page output, or inline JSON.
+                  Default: 'auto'.
         start_index: Character offset for pagination. Default: 0.
-        max_length: Max characters to return. Default: 10000.
-        block_media: Block images/media/fonts. Default: True.
+        max_length: Maximum characters to return per request. Default is 10000.
+        block_media: Block images, videos, and fonts entirely at the network
+                     layer. Default is true.
+
+    Built-in page templates (use by name to force a specific extractor):
+      wikipedia, reddit, mdn-web-docs, gitlab, youtube, devto, go-pkg,
+      javadoc, github-repo, github-issue, npm-package, pypi-package,
+      crates-package, docker-hub, docs-rs, docs-page, raw
     """
     # 1. Resolve template
     matched_template, template_name = resolve_page_template(url, template)

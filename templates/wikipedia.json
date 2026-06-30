@@ -1,0 +1,46 @@
+{
+  "name": "wikipedia",
+  "description": "Wikipedia article — title and main content",
+  "order": 11,
+  "url_patterns": [
+    "^https?://[a-z]{2,4}\\.wikipedia\\.org/wiki/[^:]+$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    ".mw-editsection",
+    ".reflist",
+    ".navbox",
+    ".sisterproject",
+    ".metadata",
+    ".sidebar",
+    ".infobox",
+    "#toc",
+    ".mw-jump-link",
+    ".printfooter",
+    ".catlinks",
+    ".mw-authority-control",
+    ".shortdescription",
+    ".mw-indicators",
+    ".page-actions",
+    ".mw-page-title-namespace",
+    ".mw-heading-subtitle"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "#firstHeading, h1",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Content",
+      "selector": "#mw-content-text .mw-parser-output",
+      "format": "markdown",
+      "required": true
+    }
+  ]
+}

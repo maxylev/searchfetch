@@ -1,0 +1,39 @@
+{
+  "name": "mdn-web-docs",
+  "description": "MDN Web Docs article — title and main content",
+  "order": 15,
+  "url_patterns": [
+    "^https?://developer\\.mozilla\\.org/.*"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    "header",
+    ".sidebar",
+    ".toc",
+    ".interactive",
+    ".playground",
+    ".bc-data",
+    ".prev-next",
+    ".notecard",
+    ".language-menu",
+    ".breadcrumbs-container"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "h1",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Content",
+      "selector": "#content, article, main, .main-page-content",
+      "format": "markdown",
+      "required": true
+    }
+  ]
+}

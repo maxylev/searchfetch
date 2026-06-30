@@ -1,0 +1,50 @@
+{
+  "name": "go-pkg",
+  "description": "Go package documentation on pkg.go.dev — name, overview, and docs",
+  "order": 22,
+  "url_patterns": [
+    "^https?://pkg\\.go\\.dev/[^/]+/?$",
+    "^https?://pkg\\.go\\.dev/[^/]+/[^/]+/?$",
+    "^https?://pkg\\.go\\.dev/[^/]+/[^/]+/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    ".go-Header",
+    ".go-SiteHeader",
+    ".go-Footer",
+    ".UnitMeta",
+    ".UnitMeta-repo",
+    ".UnitFiles",
+    ".JumpDrawer",
+    ".go-Main-nav",
+    ".go-Main-headerSubmenu",
+    ".Site-header",
+    ".UnitHeader-version",
+    ".UnitHeader-breadcrumb",
+    ".UnitHeader-details"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "h1",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Overview",
+      "selector": ".Documentation-overview, .Overview",
+      "format": "markdown",
+      "required": false
+    },
+    {
+      "name": "Documentation",
+      "selector": ".Documentation-content, .Documentation, #documentation",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

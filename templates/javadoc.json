@@ -1,0 +1,43 @@
+{
+  "name": "javadoc",
+  "description": "Java SE API documentation — class/method details",
+  "order": 8.5,
+  "url_patterns": [
+    "^https?://docs\\.oracle\\.com/.*/docs/api/.*"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    "header",
+    ".topNav",
+    ".bottomNav",
+    ".subNav",
+    ".navListSearch",
+    ".skipNav",
+    ".searchTag",
+    ".searchTagResult",
+    ".useSummary",
+    ".inheritedList",
+    ".details",
+    ".memberSummary",
+    ".colFirst",
+    ".colLast"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": ".header h2, h2.title, h2:first-of-type",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Content",
+      "selector": "[role='main'], .document, .rst-content, article, .content, .markdown-body, .prose, main, .contentContainer",
+      "format": "markdown",
+      "required": true
+    }
+  ]
+}

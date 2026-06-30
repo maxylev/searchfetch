@@ -1,0 +1,49 @@
+{
+  "name": "gitlab",
+  "description": "GitLab project — description, file listing, and README",
+  "order": 12,
+  "url_patterns": [
+    "^https?://gitlab\\.com/[^/]+/[^/]+/?$",
+    "^https?://gitlab\\.com/[^/]+/[^/]+/-/tree/[^/]+/?$"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "nav",
+    "footer",
+    "header",
+    ".navbar-gitlab",
+    ".nav-sidebar",
+    ".issuable-list",
+    ".super-sidebar",
+    "aside"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "h1",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Description",
+      "selector": "meta[name='description']",
+      "format": "attribute",
+      "attribute": "content",
+      "required": false
+    },
+    {
+      "name": "Files",
+      "selector": "table[data-qa-selector='file_tree_table'], .tree-table",
+      "format": "markdown",
+      "required": false
+    },
+    {
+      "name": "README",
+      "selector": ".readme-holder .md, .file-content .md, .readme-holder",
+      "format": "markdown",
+      "required": false
+    }
+  ]
+}

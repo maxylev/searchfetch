@@ -97,6 +97,15 @@ describe("Template loading", () => {
       "github-issue",
       "duckduckgo-search",
       "google-search",
+      "wikipedia",
+      "reddit",
+      "mdn-web-docs",
+      "gitlab",
+      "youtube",
+      "devto",
+      "go-pkg",
+      "javadoc",
+      "raw",
     ];
     for (const name of names) {
       assert.ok(TEMPLATE_MAP.has(name), `Expected template '${name}' to exist`);

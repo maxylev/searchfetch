@@ -1,0 +1,45 @@
+{
+  "name": "devto",
+  "description": "DEV Community article — title, author, and content",
+  "order": 20,
+  "url_patterns": [
+    "^https?://dev\\.to/[^/]+/[^/]+"
+  ],
+  "remove": [
+    "script",
+    "style",
+    "svg",
+    "img",
+    "nav",
+    "footer",
+    ".sidebar",
+    ".crayons-layout__sidebar-left",
+    ".crayons-layout__sidebar-right",
+    ".crayons-article-actions",
+    ".reaction-button",
+    ".crayons-btn",
+    ".spec__tags",
+    ".article-engagement-bar",
+    ".comments-container"
+  ],
+  "sections": [
+    {
+      "name": "Title",
+      "selector": "h1",
+      "format": "text",
+      "required": true
+    },
+    {
+      "name": "Author",
+      "selector": ".crayons-article__header__meta a, a.crayons-avatar",
+      "format": "text",
+      "required": false
+    },
+    {
+      "name": "Content",
+      "selector": "#article-body, .crayons-article__body, article.crayons-article",
+      "format": "markdown",
+      "required": true
+    }
+  ]
+}

@@ -1019,7 +1019,7 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.2.3" });
+const server = new McpServer({ name: "searchfetch", version: "3.3.0" });
 
 // --- websearch tool ---
 
@@ -1114,7 +1114,11 @@ server.registerTool(
         .string()
         .default("auto")
         .describe(
-          "Template to use: 'auto' (auto-detect from URL), a built-in name, or inline JSON.",
+          "Template to use: 'auto' (auto-detect from URL), a built-in page template name " +
+            "(wikipedia, reddit, mdn-web-docs, gitlab, youtube, devto, go-pkg, javadoc, " +
+            "github-repo, github-issue, npm-package, pypi-package, crates-package, " +
+            "docker-hub, docs-rs, docs-page), 'raw' for minimal-filtering full-page output, " +
+            "or inline JSON.",
         ),
       start_index: z.number().default(0).describe("Character offset for pagination. Default: 0."),
       max_length: z
