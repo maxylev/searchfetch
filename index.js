@@ -328,7 +328,10 @@ async function fetchHtml(url, template, blockMedia) {
           timeout: 15000,
         });
       } catch (_navError) {
-        // Allow partial rendering on timeout
+        // Allow partial rendering on timeout only
+        if (!_navError.message?.includes("timeout") && !_navError.message?.includes("Timeout")) {
+          throw _navError;
+        }
       }
 
       // Check HTTP status for access failures
@@ -377,7 +380,8 @@ async function fetchHtmlWithRetry(url, template, blockMedia) {
         attempt < FETCH_MAX_ATTEMPTS - 1 &&
         (err.message.includes("net::") ||
           err.message.includes("ERR_") ||
-          err.message.includes("Navigation failed"))
+          err.message.includes("Navigation failed") ||
+          err.message.includes("navigating"))
       ) {
         await sleep(500);
         continue;
