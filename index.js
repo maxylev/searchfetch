@@ -274,16 +274,18 @@ function isAccessDenied($) {
 
   if (titleDenyPatterns.some((pattern) => title.includes(pattern))) return true;
 
-  const bodyDenyPatterns = [
+  const strongBodyDenyPatterns = [
     "to continue, please type the characters",
     "our systems have detected unusual traffic",
-    "verify you are human",
-    "are you a robot",
     "sorry, you have been blocked",
-    "access denied",
+    "bots use duckduckgo too",
   ];
 
-  if (bodyText.length < 1200 && bodyDenyPatterns.some((pattern) => bodyText.includes(pattern)))
+  if (strongBodyDenyPatterns.some((pattern) => bodyText.includes(pattern))) return true;
+
+  const shortBodyDenyPatterns = ["verify you are human", "are you a robot", "access denied"];
+
+  if (bodyText.length < 1200 && shortBodyDenyPatterns.some((pattern) => bodyText.includes(pattern)))
     return true;
 
   return false;
@@ -1021,9 +1023,55 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
   return { template, url };
 }
 
+function resolveDuckDuckGoLiteTemplate(query, region, safeSearch) {
+  const template = {
+    ...getTemplateByName("duckduckgo-search"),
+    name: "duckduckgo-lite-search",
+    url_template: "https://lite.duckduckgo.com/lite/?q={query}&kl={kl}&kp={kp}",
+    sections: [
+      {
+        name: "Results",
+        selector: "a.result-link",
+        multiple: true,
+        max_items: 10,
+        children: [
+          { name: "Title", selector: "", format: "text" },
+          {
+            name: "URL",
+            selector: "",
+            format: "attribute",
+            attribute: "href",
+            transform: "decode_ddg_url",
+          },
+        ],
+      },
+    ],
+  };
+  const params = mapSearchParams("duckduckgo", query, region, safeSearch);
+  return { template, url: resolveUrlTemplate(template, params), engine: "duckduckgo-lite" };
+}
+
+function resolveSearchCandidates(engine, query, region, safeSearch) {
+  const primary = { ...resolveSearchTemplate(engine, query, region, safeSearch), engine };
+  if (engine === "google") {
+    return [
+      primary,
+      {
+        ...resolveSearchTemplate("duckduckgo", query, region, safeSearch),
+        engine: "duckduckgo",
+      },
+      resolveDuckDuckGoLiteTemplate(query, region, safeSearch),
+    ];
+  }
+  if (engine === "duckduckgo") {
+    return [primary, resolveDuckDuckGoLiteTemplate(query, region, safeSearch)];
+  }
+  return [primary];
+}
+
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.3.0" });
+const server = new McpServer({ name: "searchfetch", version: "3.3.1" });
 
 // --- websearch tool ---
 
@@ -1069,28 +1117,41 @@ server.registerTool(
   },
   async ({ query, engine, region, safe_search, max_results, block_media }) => {
     try {
-      // 1. Resolve search template (+ url_params mapping + url building)
-      const { template, url } = resolveSearchTemplate(engine, query, region, safe_search);
+      const candidates = resolveSearchCandidates(engine, query, region, safe_search);
+      let extracted;
+      let selectedEngine;
+      let lastError;
 
-      // 2. Fetch
-      const html = await fetchHtmlWithRetry(url, template, block_media);
+      for (const candidate of candidates) {
+        try {
+          const html = await fetchHtmlWithRetry(candidate.url, candidate.template, block_media);
+          const $ = cheerio.load(html);
+          applyRemove($, candidate.template);
+          extracted = extractTemplate($, candidate.template, {
+            origin: new URL(candidate.url).origin,
+            isWebsearch: true,
+            maxResultsOverride: max_results,
+            _maxResultsConsumed: false,
+          });
+          const resultSection = extracted.find((result) => result.type === "children-multiple");
+          if (resultSection?.items?.length > 0) {
+            selectedEngine = candidate.engine;
+            break;
+          }
+          lastError = new Error(`No results extracted from ${candidate.engine}.`);
+        } catch (err) {
+          lastError = err;
+        }
+      }
 
-      // 3. Extract
-      const $ = cheerio.load(html);
-      applyRemove($, template);
+      if (!extracted || !selectedEngine) throw lastError || new Error("No search results found.");
 
-      const pageOrigin = new URL(url).origin;
-      const context = {
-        origin: pageOrigin,
-        isWebsearch: true,
-        maxResultsOverride: max_results,
-        _maxResultsConsumed: false,
-      };
-
-      const extracted = extractTemplate($, template, context);
-
-      // 4. Compose
-      const result = composeSearchResults(extracted);
+      let result = composeSearchResults(extracted);
+      if (selectedEngine !== engine) {
+        result =
+          `[websearch: ${engine} was unavailable; results are from ${selectedEngine}.]\n\n` +
+          result;
+      }
 
       return { content: [{ type: "text", text: result }] };
     } catch (err) {
@@ -1216,6 +1277,7 @@ export {
   resolveEngineToTemplateName,
   mapSearchParams,
   resolveSearchTemplate,
+  resolveSearchCandidates,
   isMarkdownContent,
   stripSourceMarkdown,
   resolveSourceUrl,

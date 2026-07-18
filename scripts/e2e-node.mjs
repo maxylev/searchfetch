@@ -66,6 +66,20 @@ async function assertMcpServer(command, args) {
       throw new Error(`Unexpected webfetch result: ${fetchText.slice(0, 500)}`);
     }
 
+    const rawFetchResult = await client.callTool({
+      name: "webfetch",
+      arguments: {
+        url: "https://example.com",
+        template: "raw",
+        max_length: 300,
+        block_media: true,
+      },
+    });
+    const rawFetchText = rawFetchResult.content?.[0]?.text ?? "";
+    if (rawFetchResult.isError || !rawFetchText.includes('template="raw"')) {
+      throw new Error(`Unexpected raw webfetch result: ${rawFetchText.slice(0, 500)}`);
+    }
+
     const searchResult = await client.callTool({
       name: "websearch",
       arguments: {

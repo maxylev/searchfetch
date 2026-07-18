@@ -11,7 +11,7 @@ from markdownify import markdownify as md
 from mcp.server.fastmcp import FastMCP
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 
 mcp = FastMCP("searchfetch")
 
@@ -448,13 +448,16 @@ ACCESS_DENIED_TITLE_PATTERNS = [
 ]
 
 ACCESS_DENIED_BODY_TRIGGERS = [
-    "captcha",
     "verify you are human",
     "are you a robot",
-    "unusual traffic",
     "access denied",
+]
+
+ACCESS_DENIED_STRONG_BODY_TRIGGERS = [
+    "our systems have detected unusual traffic",
     "sorry, you have been blocked",
     "to continue, please type the characters",
+    "bots use duckduckgo too",
 ]
 
 _ACCESS_DENIED_RE = re.compile("|".join(ACCESS_DENIED_TITLE_PATTERNS), re.IGNORECASE)
@@ -473,8 +476,10 @@ def _detect_access_failure(http_status: int | None, soup: BeautifulSoup) -> bool
     body = soup.find("body")
     if body:
         body_text = body.get_text(" ", strip=True)
+        lowered = body_text.lower()
+        if any(trigger in lowered for trigger in ACCESS_DENIED_STRONG_BODY_TRIGGERS):
+            return True
         if len(body_text) < 800:
-            lowered = body_text.lower()
             if any(trigger in lowered for trigger in ACCESS_DENIED_BODY_TRIGGERS):
                 return True
 
@@ -606,6 +611,7 @@ async def fetch_html(url: str, template: dict | None, block_media: bool, retry: 
                 or "econnreset" in exc_msg
                 or "enotfound" in exc_msg
                 or "navigation" in exc_msg
+                or "navigating" in exc_msg
             )
             if attempt < attempts - 1 and is_network:
                 await asyncio.sleep(0.5)
@@ -1033,6 +1039,84 @@ def generic_fallback(html_content: str, _url: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_search_candidate(
+    engine: str, query: str, region: str | None, safe_search: bool | None
+) -> tuple[str, dict, str]:
+    template_name = resolve_search_template(engine)
+    if template_name.startswith("{"):
+        try:
+            template = json.loads(template_name)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid inline JSON template: {exc}") from exc
+    else:
+        if template_name not in BUILTIN_TEMPLATES:
+            available = sorted(BUILTIN_TEMPLATES.keys())
+            raise ValueError(
+                f"Unknown search template '{template_name}'. Available: {', '.join(available)}"
+            )
+        template = BUILTIN_TEMPLATES[template_name]
+
+    if not template.get("url_template"):
+        raise ValueError(
+            f"Template '{template.get('name', template_name)}' is not a search "
+            "template (no url_template). Use webfetch for page templates."
+        )
+
+    engine_key = engine if engine in ("duckduckgo", "google") else "custom"
+    params = map_search_params(query, engine_key, region, safe_search)
+    resolved_url = resolve_url_template(template, params)
+    if engine_key == "google" and safe_search is True:
+        resolved_url += "&safe=active"
+    return engine, template, resolved_url
+
+
+def _resolve_duckduckgo_lite_candidate(
+    query: str, region: str | None, safe_search: bool | None
+) -> tuple[str, dict, str]:
+    template = dict(BUILTIN_TEMPLATES["duckduckgo-search"])
+    template.update(
+        {
+            "name": "duckduckgo-lite-search",
+            "url_template": "https://lite.duckduckgo.com/lite/?q={query}&kl={kl}&kp={kp}",
+            "sections": [
+                {
+                    "name": "Results",
+                    "selector": "a.result-link",
+                    "multiple": True,
+                    "max_items": 10,
+                    "children": [
+                        {"name": "Title", "selector": "", "format": "text"},
+                        {
+                            "name": "URL",
+                            "selector": "",
+                            "format": "attribute",
+                            "attribute": "href",
+                            "transform": "decode_ddg_url",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+    params = map_search_params(query, "duckduckgo", region, safe_search)
+    return "duckduckgo-lite", template, resolve_url_template(template, params)
+
+
+def _resolve_search_candidates(
+    engine: str, query: str, region: str | None, safe_search: bool | None
+) -> list[tuple[str, dict, str]]:
+    primary = _resolve_search_candidate(engine, query, region, safe_search)
+    if engine == "google":
+        return [
+            primary,
+            _resolve_search_candidate("duckduckgo", query, region, safe_search),
+            _resolve_duckduckgo_lite_candidate(query, region, safe_search),
+        ]
+    if engine == "duckduckgo":
+        return [primary, _resolve_duckduckgo_lite_candidate(query, region, safe_search)]
+    return [primary]
+
+
 @mcp.tool()
 async def websearch(
     query: str,
@@ -1053,50 +1137,35 @@ async def websearch(
         max_results: Max results to extract. Default: 10.
         block_media: Block images/media/fonts. Default: True.
     """
-    # 1. Resolve engine → template name
-    template_name = resolve_search_template(engine)
+    candidates = _resolve_search_candidates(engine, query, region, safe_search)
+    last_exc = None
 
-    # 2. Resolve the template object
-    if template_name.startswith("{"):
+    for selected_engine, template, resolved_url in candidates:
         try:
-            template = json.loads(template_name)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid inline JSON template: {exc}") from exc
-    else:
-        if template_name not in BUILTIN_TEMPLATES:
-            available = sorted(BUILTIN_TEMPLATES.keys())
-            raise ValueError(
-                f"Unknown search template '{template_name}'. Available: {', '.join(available)}"
+            html = await fetch_html(resolved_url, template, block_media, retry=True)
+            soup = BeautifulSoup(html, "html.parser")
+            sections_data = extract_template(
+                soup, template, origin="", max_results_override=max_results
             )
-        template = BUILTIN_TEMPLATES[template_name]
+            result_section = next(
+                (section for section in sections_data if section.get("type") == "search_results"),
+                None,
+            )
+            if result_section and result_section.get("items"):
+                result = compose_search_results(
+                    sections_data, template.get("name", selected_engine)
+                )
+                if selected_engine != engine:
+                    result = (
+                        f"[websearch: {engine} was unavailable; results are from "
+                        f"{selected_engine}.]\n\n{result}"
+                    )
+                return result
+            last_exc = RuntimeError(f"No results extracted from {selected_engine}.")
+        except Exception as exc:
+            last_exc = exc
 
-    # Validate url_template exists
-    if not template.get("url_template"):
-        raise ValueError(
-            f"Template '{template.get('name', template_name)}' is not a search "
-            "template (no url_template). Use webfetch for page templates."
-        )
-
-    # 3. Map universal params to engine-specific url_params
-    engine_key = engine if engine in ("duckduckgo", "google") else "custom"
-    url_params = map_search_params(query, engine_key, region, safe_search)
-
-    # 4. Resolve URL template
-    resolved_url = resolve_url_template(template, url_params)
-
-    # Google safe_search: append &safe=active after URL resolution
-    if engine_key == "google" and safe_search is True:
-        resolved_url += "&safe=active"
-
-    # 5. Fetch
-    html = await fetch_html(resolved_url, template, block_media, retry=True)
-
-    # 6. Parse and extract
-    soup = BeautifulSoup(html, "html.parser")
-    sections_data = extract_template(soup, template, origin="", max_results_override=max_results)
-
-    # 7. Compose output
-    return compose_search_results(sections_data, template.get("name", template_name))
+    raise last_exc or RuntimeError("No search results found.")
 
 
 @mcp.tool()

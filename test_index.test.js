@@ -24,6 +24,7 @@ import {
   stripSourceMarkdown,
   resolveSourceUrl,
   parseRetryAfterMs,
+  isAccessDenied,
   applyTransform,
   composeSections,
   composeSearchResults,
@@ -462,6 +463,17 @@ describe("parseRetryAfterMs", () => {
 
   it("caps at 30000ms", () => {
     assert.equal(parseRetryAfterMs("999"), 30000);
+  });
+});
+
+describe("Access-denied detection", () => {
+  it("detects long Google unusual-traffic pages", async () => {
+    const cheerio = await import("cheerio");
+    const filler = "ordinary text ".repeat(200);
+    const $ = cheerio.load(
+      `<html><body>${filler}Our systems have detected unusual traffic from your computer network.</body></html>`,
+    );
+    assert.equal(isAccessDenied($), true);
   });
 });
 

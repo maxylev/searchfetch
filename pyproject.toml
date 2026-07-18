@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "searchfetch"
-version = "3.3.0"
+version = "3.3.1"
 description = "A maximum fault-tolerant, stealth-enabled MCP server for web searching and fetching."
 readme = "README.md"
 license = "MIT"
@@ -15,15 +15,15 @@ authors =[
 keywords =["mcp", "search", "fetch", "llm", "ai", "agent", "stealth"]
 dependencies =[
     "mcp>=1.28.1",
-    "cloakbrowser>=0.4.5",
+    "cloakbrowser>=0.4.11",
     "beautifulsoup4>=4.15.0",
-    "markdownify>=1.2.2"
+    "markdownify>=1.2.3"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1.1",
-    "ruff>=0.15.20",
+    "ruff>=0.15.22",
 ]
 
 [project.urls]
@@ -38,18 +38,7 @@ searchfetch = "server:main"
 py-modules =["server"]
 
 [tool.setuptools.data-files]
-templates = [
-    "templates/github-repo.json",
-    "templates/github-issue.json",
-    "templates/npm-package.json",
-    "templates/pypi-package.json",
-    "templates/crates-package.json",
-    "templates/google-search.json",
-    "templates/duckduckgo-search.json",
-    "templates/docs-page.json",
-    "templates/docs-rs.json",
-    "templates/docker-hub.json",
-]
+templates = ["templates/*.json"]
 
 [tool.ruff]
 line-length = 100

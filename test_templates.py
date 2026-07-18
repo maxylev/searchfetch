@@ -1439,7 +1439,36 @@ class TestServerImport:
     def test_server_version_is_set(self):
         import server
 
-        assert server.__version__ == "3.3.0"
+        assert server.__version__ == "3.3.1"
+
+    def test_detects_long_google_block_page(self):
+        from bs4 import BeautifulSoup
+
+        import server
+
+        html = (
+            "<html><body>"
+            + ("ordinary text " * 200)
+            + "Our systems have detected unusual traffic from your computer network."
+            + "</body></html>"
+        )
+        assert server._detect_access_failure(None, BeautifulSoup(html, "html.parser"))
+
+    def test_search_candidates_include_fallbacks(self):
+        import server
+
+        google = server._resolve_search_candidates("google", "test", None, None)
+        duckduckgo = server._resolve_search_candidates("duckduckgo", "test", None, None)
+
+        assert [candidate[0] for candidate in google] == [
+            "google",
+            "duckduckgo",
+            "duckduckgo-lite",
+        ]
+        assert [candidate[0] for candidate in duckduckgo] == [
+            "duckduckgo",
+            "duckduckgo-lite",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -1790,10 +1819,10 @@ class TestPythonSelectHelpers:
 class TestPythonMetadata:
     """Test Python server version and metadata."""
 
-    def test_version_is_3_2_3(self):
+    def test_version_is_3_3_1(self):
         import server
 
-        assert server.__version__ == "3.3.0"
+        assert server.__version__ == "3.3.1"
 
     def test_server_name_is_searchfetch(self):
         import server

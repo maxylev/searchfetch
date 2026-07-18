@@ -66,6 +66,21 @@ async def assert_mcp_server(command: str, args: list[str]) -> None:
             if fetch.isError or "Example Domain" not in fetch_text:
                 raise AssertionError(f"Unexpected webfetch result: {fetch_text[:500]}")
 
+            raw_fetch = await session.call_tool(
+                "webfetch",
+                {
+                    "url": "https://example.com",
+                    "template": "raw",
+                    "max_length": 300,
+                    "block_media": True,
+                },
+            )
+            raw_fetch_text = (
+                str(getattr(raw_fetch.content[0], "text", "")) if raw_fetch.content else ""
+            )
+            if raw_fetch.isError or 'template="raw"' not in raw_fetch_text:
+                raise AssertionError(f"Unexpected raw webfetch result: {raw_fetch_text[:500]}")
+
             search = await session.call_tool(
                 "websearch",
                 {
