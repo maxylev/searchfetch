@@ -8,12 +8,12 @@ from pathlib import Path
 from bs4 import BeautifulSoup, Tag
 from cloakbrowser import launch_async
 from markdownify import markdownify as md
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-__version__ = "3.3.1"
+__version__ = "3.3.2"
 
-mcp = FastMCP("searchfetch")
+mcp = MCPServer("searchfetch", version=__version__)
 
 # ---------------------------------------------------------------------------
 # Browser Manager — single shared browser instance, stealth by default

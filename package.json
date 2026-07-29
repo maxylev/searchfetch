@@ -1,6 +1,6 @@
 {
   "name": "searchfetch",
-  "version": "3.3.1",
+  "version": "3.3.2",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
@@ -34,10 +34,10 @@
     "e2e:py": "uv run python scripts/e2e-python.py"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "cheerio": "^1.2.0",
-    "cloakbrowser": "^0.4.11",
-    "playwright-core": "^1.61.1",
+    "cloakbrowser": "^0.5.2",
+    "playwright-core": "^1.62.0",
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
   },
@@ -45,7 +45,7 @@
     "encoding-sniffer": "1.0.2"
   },
   "devDependencies": {
-    "eslint": "^10.7.0",
-    "prettier": "^3.9.5"
+    "eslint": "^10.8.0",
+    "prettier": "^3.9.6"
   }
 }

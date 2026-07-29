@@ -1439,7 +1439,7 @@ class TestServerImport:
     def test_server_version_is_set(self):
         import server
 
-        assert server.__version__ == "3.3.1"
+        assert server.__version__ == "3.3.2"
 
     def test_detects_long_google_block_page(self):
         from bs4 import BeautifulSoup
@@ -1819,10 +1819,10 @@ class TestPythonSelectHelpers:
 class TestPythonMetadata:
     """Test Python server version and metadata."""
 
-    def test_version_is_3_3_1(self):
+    def test_version_is_3_3_2(self):
         import server
 
-        assert server.__version__ == "3.3.1"
+        assert server.__version__ == "3.3.2"
 
     def test_server_name_is_searchfetch(self):
         import server
