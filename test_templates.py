@@ -1428,6 +1428,27 @@ class TestServerImport:
         assert "javadoc" in tmpl_names
         assert "raw" in tmpl_names
 
+    def test_project_templates_directory_does_not_shadow_packaged_templates(
+        self, tmp_path, monkeypatch
+    ):
+        import server
+
+        module_dir = tmp_path / "site-packages"
+        module_dir.mkdir()
+        packaged_templates = tmp_path / "venv" / "templates"
+        packaged_templates.mkdir(parents=True)
+        (packaged_templates / "packaged.json").write_text(
+            json.dumps({"name": "packaged", "order": 1}), encoding="utf-8"
+        )
+        project_dir = tmp_path / "project"
+        (project_dir / "templates").mkdir(parents=True)
+
+        monkeypatch.setattr(server, "__file__", str(module_dir / "server.py"))
+        monkeypatch.setattr(server.sys, "prefix", str(tmp_path / "venv"))
+        monkeypatch.chdir(project_dir)
+
+        assert server._load_builtin_templates() == {"packaged": {"name": "packaged", "order": 1}}
+
     def test_source_markdown_functions_exist(self):
         import server
 
@@ -1439,7 +1460,7 @@ class TestServerImport:
     def test_server_version_is_set(self):
         import server
 
-        assert server.__version__ == "3.3.2"
+        assert server.__version__ == "3.3.3"
 
     def test_detects_long_google_block_page(self):
         from bs4 import BeautifulSoup
@@ -1819,10 +1840,10 @@ class TestPythonSelectHelpers:
 class TestPythonMetadata:
     """Test Python server version and metadata."""
 
-    def test_version_is_3_3_2(self):
+    def test_version_is_3_3_3(self):
         import server
 
-        assert server.__version__ == "3.3.2"
+        assert server.__version__ == "3.3.3"
 
     def test_server_name_is_searchfetch(self):
         import server

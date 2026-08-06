@@ -11,7 +11,7 @@ from markdownify import markdownify as md
 from mcp.server import MCPServer
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-__version__ = "3.3.2"
+__version__ = "3.3.3"
 
 mcp = MCPServer("searchfetch", version=__version__)
 
@@ -199,15 +199,13 @@ def _load_builtin_templates():
 
     Searches (in order):
       1. templates/ adjacent to server.py (development / editable install)
-      2. templates/ in current working directory (uv run, npm run)
-      3. templates/ under sys.prefix (data_files wheel install)
+      2. templates/ under sys.prefix (data_files wheel install)
 
     Returns a dict of template name -> template data, preserving insertion
     order sorted by the "order" field in each template.
     """
     search_paths = [
         Path(__file__).resolve().parent / "templates",
-        Path.cwd() / "templates",
         Path(sys.prefix) / "templates",
     ]
 
@@ -218,7 +216,7 @@ def _load_builtin_templates():
             break
 
     if templates_dir is None:
-        searched = "', '".join(str(p) for p in search_paths[:2])
+        searched = "', '".join(str(p) for p in search_paths)
         raise FileNotFoundError(f"Templates directory not found. Searched: '{searched}'")
 
     json_files = sorted(templates_dir.glob("*.json"))

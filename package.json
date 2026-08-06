@@ -1,6 +1,6 @@
 {
   "name": "searchfetch",
-  "version": "3.3.2",
+  "version": "3.3.3",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
@@ -36,8 +36,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "cheerio": "^1.2.0",
-    "cloakbrowser": "^0.5.2",
-    "playwright-core": "^1.62.0",
+    "cloakbrowser": "^0.5.5",
+    "playwright-core": "^1.62.1",
     "turndown": "^7.2.4",
     "zod": "^4.4.3"
   },

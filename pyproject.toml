@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "searchfetch"
-version = "3.3.2"
+version = "3.3.3"
 description = "A maximum fault-tolerant, stealth-enabled MCP server for web searching and fetching."
 readme = "README.md"
 license = "MIT"
@@ -15,7 +15,7 @@ authors =[
 keywords =["mcp", "search", "fetch", "llm", "ai", "agent", "stealth"]
 dependencies =[
     "mcp>=2.0.0",
-    "cloakbrowser>=0.5.2",
+    "cloakbrowser>=0.5.5",
     "beautifulsoup4>=4.15.0",
     "markdownify>=1.2.3",
 ]
@@ -23,7 +23,7 @@ dependencies =[
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1.1",
-    "ruff>=0.16.0",
+    "ruff>=0.16.1",
 ]
 
 [project.urls]

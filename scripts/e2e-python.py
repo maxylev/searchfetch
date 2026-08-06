@@ -43,8 +43,8 @@ def project_version() -> str:
         return tomllib.load(file)["project"]["version"]
 
 
-async def assert_mcp_server(command: str, args: list[str]) -> None:
-    params = StdioServerParameters(command=command, args=args)
+async def assert_mcp_server(command: str, args: list[str], cwd: Path | None = None) -> None:
+    params = StdioServerParameters(command=command, args=args, cwd=cwd)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
@@ -111,7 +111,9 @@ async def assert_packaged_wheel() -> None:
             ["uv", "pip", "install", "--python", str(python_bin), str(wheel)],
             check=True,
         )
-        await assert_mcp_server(str(searchfetch_bin), [])
+        project_dir = Path(temp_dir) / "project"
+        (project_dir / "templates").mkdir(parents=True)
+        await assert_mcp_server(str(searchfetch_bin), [], cwd=project_dir)
 
 
 async def main() -> None:

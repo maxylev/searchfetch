@@ -1071,7 +1071,7 @@ function resolveSearchCandidates(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.3.2" });
+const server = new McpServer({ name: "searchfetch", version: "3.3.3" });
 
 // --- websearch tool ---
 
