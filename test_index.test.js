@@ -285,13 +285,13 @@ describe("Search parameter mapping", () => {
   it("maps Google region (hl/gl parameters)", () => {
     const params = mapSearchParams("google", "test query", "us-en", null);
     assert.equal(params.query, "test query");
-    assert.equal(params.hl, "us");
-    assert.equal(params.gl, "en");
+    assert.equal(params.hl, "en");
+    assert.equal(params.gl, "us");
   });
 
   it("maps Google region with single component", () => {
     const params = mapSearchParams("google", "test", "de", null);
-    assert.equal(params.hl, "de");
+    assert.equal(params.hl, undefined);
     assert.equal(params.gl, "de");
   });
 

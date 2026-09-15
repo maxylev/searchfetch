@@ -2,13 +2,33 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { createServer } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+const fixture = readFileSync(new URL("../tests/fixtures/page.html", import.meta.url));
+const templateCases = JSON.parse(
+  readFileSync(new URL("../tests/fixtures/templates.json", import.meta.url), "utf8"),
+);
+const templateFixtures = new Map(
+  templateCases.map((templateCase) => [`/fixture/${templateCase.template}`, templateCase]),
+);
+const httpServer = createServer((request, response) => {
+  if (request.url === "/missing") {
+    response.writeHead(404, { "Content-Type": "text/html" });
+    response.end(fixture);
+    return;
+  }
+  response.writeHead(200, { "Content-Type": "text/html" });
+  response.end(templateFixtures.get(request.url)?.html ?? fixture);
+});
+await new Promise((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
+const baseUrl = `http://127.0.0.1:${httpServer.address().port}`;
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const exampleSearchTemplate = JSON.stringify({
   name: "e2e-example-search",
-  url_template: "https://example.com/?q={query}",
+  url_template: `${baseUrl}/?q={query}`,
   url_params: {
     query: { required: true, encode: "url" },
   },
@@ -33,7 +53,7 @@ const exampleSearchTemplate = JSON.stringify({
 });
 
 async function withClient(command, args, callback) {
-  const transport = new StdioClientTransport({ command, args });
+  const transport = new StdioClientTransport({ command, args, env: { ...process.env } });
   const client = new Client({ name: "searchfetch-node-e2e", version: "0.0.0" });
 
   try {
@@ -56,7 +76,7 @@ async function assertMcpServer(command, args) {
     const fetchResult = await client.callTool({
       name: "webfetch",
       arguments: {
-        url: "https://example.com",
+        url: baseUrl,
         max_length: 300,
         block_media: true,
       },
@@ -69,7 +89,7 @@ async function assertMcpServer(command, args) {
     const rawFetchResult = await client.callTool({
       name: "webfetch",
       arguments: {
-        url: "https://example.com",
+        url: baseUrl,
         template: "raw",
         max_length: 300,
         block_media: true,
@@ -90,10 +110,48 @@ async function assertMcpServer(command, args) {
       },
     });
     const searchText = searchResult.content?.[0]?.text ?? "";
+    if (!searchText.includes(`${baseUrl}/destination`))
+      throw new Error("Relative URL was not resolved");
     if (searchResult.isError || !searchText.includes("[1] Example Domain")) {
       throw new Error(`Unexpected websearch result: ${searchText.slice(0, 500)}`);
     }
+    const missing = await client.callTool({
+      name: "webfetch",
+      arguments: { url: `${baseUrl}/missing` },
+    });
+    if (!missing.isError || !missing.content?.[0]?.text.includes("404"))
+      throw new Error("HTTP error was not reported");
+
+    await assertAllTemplates(client);
   });
+}
+
+async function assertAllTemplates(client) {
+  for (const templateCase of templateCases) {
+    const result = await client.callTool({
+      name: "webfetch",
+      arguments: {
+        url: `${baseUrl}/fixture/${templateCase.template}`,
+        template: templateCase.template,
+        max_length: 20000,
+        block_media: true,
+      },
+    });
+    const text = result.content?.[0]?.text ?? "";
+    if (result.isError) {
+      throw new Error(`${templateCase.template}: ${text.slice(0, 300)}`);
+    }
+    for (const expected of templateCase.expect) {
+      if (!text.includes(expected)) {
+        throw new Error(`${templateCase.template}: missing ${expected}`);
+      }
+    }
+    for (const absent of templateCase.absent) {
+      if (text.includes(absent)) {
+        throw new Error(`${templateCase.template}: found unwanted ${absent}`);
+      }
+    }
+  }
 }
 
 async function assertPackedNpmBin() {
@@ -101,10 +159,6 @@ async function assertPackedNpmBin() {
   try {
     execFileSync("npm", ["pack", "--pack-destination", tempDir], { stdio: "inherit" });
     execFileSync("npm", ["init", "-y"], { cwd: tempDir, stdio: "ignore" });
-    execFileSync("npm", ["pkg", "set", "overrides.encoding-sniffer=1.0.2"], {
-      cwd: tempDir,
-      stdio: "ignore",
-    });
     execFileSync("npm", ["install", `./searchfetch-${packageJson.version}.tgz`], {
       cwd: tempDir,
       stdio: "inherit",
@@ -115,6 +169,10 @@ async function assertPackedNpmBin() {
   }
 }
 
-await assertMcpServer("node", ["./index.js"]);
-await assertPackedNpmBin();
-console.log("Node MCP E2E passed");
+try {
+  await assertMcpServer("node", ["./index.js"]);
+  await assertPackedNpmBin();
+  console.log("Node MCP E2E passed");
+} finally {
+  await new Promise((resolve) => httpServer.close(resolve));
+}

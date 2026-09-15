@@ -2,9 +2,7 @@
   "name": "wikipedia",
   "description": "Wikipedia article — title and main content",
   "order": 11,
-  "url_patterns": [
-    "^https?://[a-z]{2,4}\\.wikipedia\\.org/wiki/[^:]+$"
-  ],
+  "url_patterns": ["^https?://[a-z]{2,4}\\.wikipedia\\.org/wiki/[^:]+$"],
   "remove": [
     "script",
     "style",

@@ -2,16 +2,8 @@
   "name": "npm-package",
   "description": "npm package page — metadata and README",
   "order": 3,
-  "url_patterns": [
-    "^https?://(www\\.)?npmjs\\.com/package/[^/]+/?$"
-  ],
-  "remove": [
-    "script",
-    "style",
-    "svg",
-    "nav",
-    "footer"
-  ],
+  "url_patterns": ["^https?://(www\\.)?npmjs\\.com/package/[^/]+/?$"],
+  "remove": ["script", "style", "svg", "nav", "footer"],
   "sections": [
     {
       "name": "Package",

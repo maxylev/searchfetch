@@ -1,0 +1,23 @@
+[
+  {
+    "name": "missing snippets do not borrow neighboring content",
+    "html": "<div class='result'><h3>First</h3><p>First snippet</p></div><div class='result'><h3>Second</h3></div>",
+    "selector": ".result",
+    "children": [{"name":"Title","selector":"h3","format":"text"},{"name":"Snippet","selector":"p","format":"text"}],
+    "expected": [{"Title":"First","Snippet":"First snippet"},{"Title":"Second"}]
+  },
+  {
+    "name": "nested commas and quoted attributes remain intact",
+    "html": "<main><p data-tags='a,b'>Selected</p><span>Other</span></main>",
+    "selector": "main",
+    "children": [{"name":"Title","selector":":is(p[data-tags='a,b'], h3), span","format":"text"}],
+    "expected": [{"Title":"Selected"}]
+  },
+  {
+    "name": "empty fallback selects current element",
+    "html": "<h3>Heading</h3>",
+    "selector": "h3",
+    "children": [{"name":"Title","selector":".missing, ","format":"text"}],
+    "expected": [{"Title":"Heading"}]
+  }
+]

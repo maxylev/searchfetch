@@ -6,13 +6,7 @@
     "^https?://pypi\\.org/project/[^/]+/?$",
     "^https?://pypi\\.org/project/[^/]+/[^/]+/?$"
   ],
-  "remove": [
-    "script",
-    "style",
-    "svg",
-    "nav",
-    "footer"
-  ],
+  "remove": ["script", "style", "svg", "nav", "footer"],
   "sections": [
     {
       "name": "Package",

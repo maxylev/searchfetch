@@ -1,0 +1,107 @@
+[
+  {
+    "name": "repeated comments use the threaded format",
+    "sections": [
+      {
+        "name": "Comments",
+        "type": "search_results",
+        "items": [
+          { "Author": "Alice", "Comment": "First comment" },
+          { "Author": "Bob", "Comment": "Second comment" }
+        ]
+      }
+    ],
+    "expected": "## Comments\n\n**Alice:**\n\nFirst comment\n\n---\n\n**Bob:**\n\nSecond comment"
+  },
+  {
+    "name": "comment style is chosen from the first item",
+    "sections": [
+      {
+        "name": "Comments",
+        "type": "search_results",
+        "items": [
+          { "Author": "Alice", "Comment": "Has both fields" },
+          { "Author": "Bob", "Comment": "" }
+        ]
+      }
+    ],
+    "expected": "## Comments\n\n**Alice:**\n\nHas both fields\n\n---\n\n**Bob:**\n\n"
+  },
+  {
+    "name": "empty first fields stay generic",
+    "sections": [
+      {
+        "name": "Results",
+        "type": "search_results",
+        "items": [
+          { "Author": "", "Comment": "" },
+          { "Title": "Only title", "URL": "https://example.com/1" }
+        ]
+      }
+    ],
+    "expected": "## Results\n\n    Title: Only title\n    URL: https://example.com/1"
+  },
+  {
+    "name": "generic repeated fields skip empty values",
+    "sections": [
+      {
+        "name": "Results",
+        "type": "search_results",
+        "items": [
+          { "Title": "One", "URL": "https://example.com/1", "Snippet": "" },
+          { "Title": "Two", "URL": "https://example.com/2", "Snippet": "Second snippet" }
+        ]
+      }
+    ],
+    "expected": "## Results\n\n    Title: One\n    URL: https://example.com/1\n\n    Title: Two\n    URL: https://example.com/2\n    Snippet: Second snippet"
+  },
+  {
+    "name": "lowercase user and body keys use threaded format",
+    "sections": [
+      {
+        "name": "Replies",
+        "type": "search_results",
+        "items": [{ "user": "carol", "body": "Lowercase body" }]
+      }
+    ],
+    "expected": "## Replies\n\n**carol:**\n\nLowercase body"
+  },
+  {
+    "name": "plain repeated values render as a bullet list",
+    "sections": [{ "name": "Keywords", "type": "multiple", "items": ["alpha", "beta"] }],
+    "expected": "## Keywords\n\n- alpha\n- beta"
+  },
+  {
+    "name": "value sections render as headings",
+    "sections": [{ "name": "Title", "type": "value", "value": "Hello World" }],
+    "expected": "## Title\n\nHello World"
+  },
+  {
+    "name": "children render as their own headings",
+    "sections": [
+      {
+        "name": "Meta",
+        "type": "children",
+        "children": [
+          { "name": "Author", "type": "value", "value": "Alice" },
+          { "name": "Empty", "type": "value", "value": "" }
+        ]
+      }
+    ],
+    "expected": "## Author\n\nAlice"
+  },
+  {
+    "name": "sections are separated and empties skipped",
+    "sections": [
+      { "name": "Title", "type": "value", "value": "Doc" },
+      { "name": "Blank", "type": "value", "value": "" },
+      { "name": "Keywords", "type": "multiple", "items": ["one"] }
+    ],
+    "expected": "## Title\n\nDoc\n\n---\n\n## Keywords\n\n- one"
+  },
+  {
+    "name": "all-empty sections produce the fallback message",
+    "sections": [{ "name": "Blank", "type": "value", "value": "" }],
+    "expected": "(No content extracted from this page.)"
+  }
+]

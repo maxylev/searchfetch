@@ -2,9 +2,7 @@
   "name": "google-search",
   "description": "Google web search results",
   "order": 7,
-  "url_patterns": [
-    "^https?://(www\\.)?google\\.[^/]+/search\\?"
-  ],
+  "url_patterns": ["^https?://(www\\.)?google\\.[^/]+/search\\?"],
   "url_template": "https://www.google.com/search?udm=14&q={query}&hl={hl}&gl={gl}",
   "url_params": {
     "query": {
@@ -31,20 +29,8 @@
       "path": "/"
     }
   ],
-  "block_resources": [
-    "image",
-    "media",
-    "font",
-    "stylesheet"
-  ],
-  "remove": [
-    "script",
-    "style",
-    "svg",
-    "img",
-    "nav",
-    "footer"
-  ],
+  "block_resources": ["image", "media", "font", "stylesheet"],
+  "remove": ["script", "style", "svg", "img", "nav", "footer"],
   "sections": [
     {
       "name": "Results",
@@ -54,7 +40,7 @@
       "children": [
         {
           "name": "Title",
-          "selector": "h3, " ,
+          "selector": "h3, ",
           "format": "text"
         },
         {

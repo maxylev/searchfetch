@@ -1,13 +1,13 @@
 # SearchFetch (MCP Server)
 
-A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built for AI Agents (Cursor, Claude Code, OpenCode), it uses a stealth browser engine to fetch pages, dynamically handles SPAs/React, and converts bloat into token-optimized Markdown.
+A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built for AI Agents (Cursor, Claude Code, OpenCode), it uses a browser to render pages and converts their content into Markdown.
 
 ## Features
 
-- **Stealth Engine:** Powered by CloakBrowser C++ patches + `humanize` logic. The browser renders and moves like a real user, reducing bot-detection scores.
-- **Fault Tolerance:** Auto-healing browser sessions, grace-period timeouts for SPAs, and network-level blocking of tracking scripts and media.
+- **Browser rendering:** CloakBrowser runs Chromium with humanized interactions. Sites can still require authentication or present challenges.
+- **Fault tolerance:** Reconnects disconnected browsers, retries network failures and HTTP 429 once, and blocks template-selected resource types. HTTP errors are reported before waiting for rendering.
 - **Token-Optimized Output:** Strips base64 images, SVGs, scripts, and inline styles from the DOM _before_ Markdown conversion.
-- **Dual Runtime:** Natively supports zero-install execution via both Python (`uvx`) and Node.js (`npx`).
+- **Dual runtime:** Run through Python (`uvx`, Python 3.10+) or Node.js (`npx`, Node 24+). First use downloads dependencies and a browser binary.
 - **Template-Driven Extraction:** Structured extraction via shared JSON templates (GitHub, npm, PyPI, crates.io, docs pages, Docker Hub, and more). Supports custom inline templates.
 
 ---
@@ -63,7 +63,7 @@ Search the web through the template pipeline. DuckDuckGo and Google are built-in
 | ------------- | ------------ | -------------- | ---------------------------------------------------------------------------------------------- |
 | `query`       | string       | _required_     | The search query string.                                                                       |
 | `engine`      | string       | `"duckduckgo"` | `"duckduckgo"`, `"google"`, or a custom search template name.                                  |
-| `max_results` | number       | `10`           | Maximum number of results to return.                                                           |
+| `max_results` | number       | `10`           | Positive integer limit on extracted results.                                                   |
 | `region`      | string/null  | `null`         | Region/language code (e.g. `"us-en"`, `"de-de"`). DDG maps directly; Google maps to `gl`/`hl`. |
 | `safe_search` | boolean/null | `null`         | Enable safe search. `null` uses the template default.                                          |
 | `block_media` | boolean      | `true`         | Block images, media, and fonts at the network layer.                                           |
@@ -76,11 +76,11 @@ Fetch a page with the stealth browser and extract structured Markdown using a te
 | ------------- | ------- | ---------- | ----------------------------------------------------- |
 | `url`         | string  | _required_ | Full URL (must start with `http`/`https`).            |
 | `template`    | string  | `"auto"`   | `"auto"`, a built-in name, or inline JSON template.   |
-| `start_index` | number  | `0`        | Character offset for pagination.                      |
-| `max_length`  | number  | `10000`    | Maximum characters per request.                       |
+| `start_index` | number  | `0`        | Nonnegative integer offset in Unicode code points.    |
+| `max_length`  | number  | `10000`    | Positive integer limit in Unicode code points.        |
 | `block_media` | boolean | `true`     | Block images, videos, and fonts at the network layer. |
 
-Template extraction supports `text`, `markdown`, `attribute`, and `html` formats; nested children; repeated sections; URL-decoding transforms; per-template cookies; and per-template resource blocking.
+Template extraction supports `text`, `markdown`, `attribute`, and `html` formats; child fields within a section; repeated sections; URL-decoding transforms; per-template cookies; and per-template resource blocking.
 
 Built-in templates live in `templates/*.json` and are shared by the Node.js and Python implementations.
 
@@ -97,8 +97,8 @@ Built-in templates live in `templates/*.json` and are shared by the Node.js and 
 
 ```bash
 # Install dependencies
-npm install
-pip install -e ".[dev]"
+npm ci
+uv sync --locked --extra dev
 
 # Run tests
 npm test                # runs all tests (JS + Python)
@@ -123,4 +123,20 @@ npm run inspector-py    # test with MCP Inspector (Python)
 
 ## Architecture
 
-This repository uses a flat dual-manifest structure (`package.json` and `pyproject.toml` in the root). Both runtimes (`index.js` for Node, `server.py` for Python) share the same `templates/*.json` files and maintain feature parity.
+Both MCP servers expose `websearch` and `webfetch` over standard input/output:
+
+1. Validate tool inputs and resolve a built-in or inline JSON template.
+2. Reuse one browser, creating an isolated browser context for each fetch attempt.
+3. Apply template cookies and resource blocking, navigate, check HTTP status, and allow up to five seconds for network activity to settle.
+4. Remove configured elements, extract section fields, apply transforms, and compose Markdown. Page templates may first try a raw Markdown source URL.
+5. Paginate page output using Unicode code points. Search requests can fall back from Google to DuckDuckGo HTML and then Lite; output names any fallback engine.
+
+`index.js` and `server.py` contain the runtime-specific browser and MCP integration. `lib/` and `selectors_utils.py` hold focused formatting and selector helpers. Both runtimes read the same `templates/*.json`; Python wheels bundle these as `searchfetch_templates` resources. Shared fixtures in `tests/fixtures/` exercise extraction behavior in both runtimes.
+
+Selectors separated by top-level commas are ordered fallbacks. Commas inside CSS functions or attributes are preserved; an empty fallback selects the current element. Child extraction searches descendants and enclosing elements, without borrowing fields from neighboring results. Missing required fields and malformed selectors report errors.
+
+## Verification and limits
+
+`npm test`, `npm run lint`, and `npm run format:check` check both runtimes. `npm run e2e` runs real browser requests against local HTTP fixtures, exercises every built-in template, and checks the installed npm executable and Python wheel. Public search-engine availability and changing third-party page layouts require separate live checks. A page that continues rendering beyond the bounded wait may return partial content.
+
+`package-lock.json` and `uv.lock` record dependency resolution.

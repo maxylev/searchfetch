@@ -1,19 +1,27 @@
 import asyncio
 import json
+import math
 import re
-import sys
 import urllib.parse
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from importlib.resources import files
 from pathlib import Path
+from typing import Annotated
 
 from bs4 import BeautifulSoup, Tag
 from cloakbrowser import launch_async
 from markdownify import markdownify as md
 from mcp.server import MCPServer
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from pydantic import Field
+from soupsieve import match as matches_selector
 
-__version__ = "3.3.3"
+from selectors_utils import split_selectors
 
-mcp = MCPServer("searchfetch", version=__version__)
+__version__ = "3.3.4"
+
 
 # ---------------------------------------------------------------------------
 # Browser Manager — single shared browser instance, stealth by default
@@ -27,7 +35,7 @@ class BrowserManager:
 
     async def get_browser(self):
         async with self._lock:
-            if self.browser and self.browser.is_connected:
+            if self.browser and self.browser.is_connected():
                 return self.browser
 
             self.browser = await launch_async(
@@ -42,16 +50,40 @@ class BrowserManager:
             return self.browser
 
     async def close(self):
-        if self.browser:
-            await self.browser.close()
-            self.browser = None
+        async with self._lock:
+            browser, self.browser = self.browser, None
+            if browser:
+                await browser.close()
 
 
 browser_manager = BrowserManager()
 
+
+@asynccontextmanager
+async def lifespan(_server):
+    try:
+        yield
+    finally:
+        await browser_manager.close()
+
+
+mcp = MCPServer("searchfetch", version=__version__, lifespan=lifespan)
+
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
+
+
+def _validate_url(url: str):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("URL must use HTTP or HTTPS and include a hostname")
+    return url
+
+
+def _validate_integer(value: int, name: str, minimum: int):
+    if type(value) is not int or value < minimum:
+        raise ValueError(f"{name} must be an integer >= {minimum}")
 
 
 def _get_string_attr(tag: Tag, attr: str) -> str:
@@ -62,44 +94,21 @@ def _get_string_attr(tag: Tag, attr: str) -> str:
 
 
 def _select_first(parent, selector_string: str):
-    """Try comma-separated selectors in order; return list of matches from the
-    first selector that produces results.  Searches descendants first, then
-    walks up the ancestor chain (up to 4 levels) searching each ancestor's
-    subtree — this allows child selectors to find elements that are siblings
-    of the parent (e.g. a snippet <div> next to an <h3> result heading).
+    """Try ordered fallbacks within the current result, then its enclosing elements.
 
-    If *selector_string* is empty or blank, return *[parent]* (the "current
-    element" semantic).  An empty selector *within* a comma list
-    (e.g. ``"a, "``) also means "current parent" and short-circuits to
-    *[parent]*."""
-    if not selector_string or not selector_string.strip():
-        return [parent]
-    # Split on top-level commas — soupsieve selectors don't nest commas.
-    selectors = [s.strip() for s in selector_string.split(",")]
-    for sel in selectors:
-        if not sel:
-            # Empty selector inside comma list → "current parent element"
+    Never search neighboring result subtrees: missing fields must stay missing.
+    """
+    for selector in split_selectors(selector_string):
+        if not selector:
             return [parent]
-        try:
-            # 1. Descendants
-            results = parent.select(sel)
-            if results:
-                return results
-        except Exception:
-            pass
-        # 2. Ancestor subtrees (walk up 4 levels; siblings are in parent's
-        #    subtree at level 1)
-        ancestor = getattr(parent, "parent", None)
-        for _level in range(4):
-            if ancestor is None or not hasattr(ancestor, "select"):
-                break
-            try:
-                results = ancestor.select(sel)
-                if results:
-                    return results
-            except Exception:
-                pass
-            ancestor = getattr(ancestor, "parent", None)
+        results = parent.select(selector)
+        if results:
+            return results
+        ancestor = parent
+        while isinstance(ancestor, Tag) and not isinstance(ancestor, BeautifulSoup):
+            if matches_selector(selector, ancestor):
+                return [ancestor]
+            ancestor = ancestor.parent
     return []
 
 
@@ -141,7 +150,7 @@ def _tf_decode_ddg_url(value, _origin):
     if isinstance(value, str) and "/l/?uddg=" in value:
         try:
             params = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(value).query))
-            return urllib.parse.unquote(str(params.get("uddg", value)))
+            return str(params.get("uddg", value))
         except Exception:
             return value
     return value
@@ -165,9 +174,9 @@ TRANSFORMS["json_parse"] = _tf_json_parse
 
 
 def _tf_resolve_href(value, origin):
-    """If href is relative (starts with /), prepend page origin."""
-    if isinstance(value, str) and value.startswith("/") and not value.startswith("//"):
-        return origin + value
+    """Resolve relative links against the full page URL."""
+    if isinstance(value, str) and origin:
+        return urllib.parse.urljoin(origin, value)
     return value
 
 
@@ -195,31 +204,14 @@ def apply_transform(value, transform, origin=""):
 
 
 def _load_builtin_templates():
-    """Load built-in template JSON files from disk.
+    """Load templates adjacent to the source or from the installed resource package."""
+    templates_dir = Path(__file__).resolve().parent / "templates"
+    if not templates_dir.is_dir():
+        templates_dir = files("searchfetch_templates")
 
-    Searches (in order):
-      1. templates/ adjacent to server.py (development / editable install)
-      2. templates/ under sys.prefix (data_files wheel install)
-
-    Returns a dict of template name -> template data, preserving insertion
-    order sorted by the "order" field in each template.
-    """
-    search_paths = [
-        Path(__file__).resolve().parent / "templates",
-        Path(sys.prefix) / "templates",
-    ]
-
-    templates_dir = None
-    for sp in search_paths:
-        if sp.is_dir():
-            templates_dir = sp
-            break
-
-    if templates_dir is None:
-        searched = "', '".join(str(p) for p in search_paths)
-        raise FileNotFoundError(f"Templates directory not found. Searched: '{searched}'")
-
-    json_files = sorted(templates_dir.glob("*.json"))
+    json_files = sorted(
+        (p for p in templates_dir.iterdir() if p.name.endswith(".json")), key=lambda p: p.name
+    )
     if not json_files:
         raise FileNotFoundError(f"No template JSON files (*.json) found in '{templates_dir}'")
 
@@ -268,7 +260,7 @@ def map_search_params(query: str, engine: str, region: str | None, safe_search: 
     """Map universal websearch params to engine-specific url_params dict."""
     params = {"query": query}
 
-    if engine == "duckduckgo":
+    if resolve_search_template(engine) == "duckduckgo-search":
         if region is not None:
             params["kl"] = region
         if safe_search is True:
@@ -276,14 +268,12 @@ def map_search_params(query: str, engine: str, region: str | None, safe_search: 
         elif safe_search is False:
             params["kp"] = "-2"
 
-    elif engine == "google":
+    elif resolve_search_template(engine) == "google-search":
         if region is not None:
-            parts = region.split("-", 1) if "-" in region else [region, region]
-            params["hl"] = parts[0]
-            if len(parts) >= 2:
-                params["gl"] = parts[1]
-            else:
-                params["gl"] = parts[0]
+            parts = region.split("-", 1)
+            params["gl"] = parts[0]
+            if len(parts) > 1:
+                params["hl"] = parts[1]
         if safe_search is True:
             params["safe"] = "active"
 
@@ -300,32 +290,39 @@ def resolve_url_template(template: dict, provided_params: dict) -> str:
         raise ValueError(f"Template '{template.get('name', 'unknown')}' has no url_template.")
 
     url_params = template.get("url_params", {})
-    resolved = url_template
 
-    # Find all {placeholder} tokens
-    placeholders = re.findall(r"\{(\w+)\}", url_template)
-
-    for key in placeholders:
-        param_def = url_params.get(key, {})
-        value = None
-
-        if key in provided_params and provided_params[key] is not None:
-            value = str(provided_params[key])
-        elif "default" in param_def:
-            value = str(param_def["default"])
-        elif param_def.get("required", False):
+    def replace(match):
+        key = match.group(1)
+        definition = url_params.get(key, {})
+        value = provided_params.get(key)
+        if value is None:
+            value = definition.get("default")
+        if value is None and definition.get("required"):
             raise ValueError(
                 f"Required URL parameter '{key}' is missing for template "
                 f"'{template.get('name', 'unknown')}'."
             )
-        else:
-            continue
+        value = str(value) if value is not None else ""
+        return (
+            urllib.parse.quote(value, safe="~()*!.'-")
+            if definition.get("encode") == "url"
+            else value
+        )
 
-        if param_def.get("encode") == "url":
-            value = urllib.parse.quote_plus(value, safe="")
-        resolved = resolved.replace(f"{{{key}}}", str(value))
+    return re.sub(r"\{(\w+)\}", replace, url_template)
 
-    return resolved
+
+def _parse_inline_template(value: str) -> dict:
+    template = json.loads(value)
+    if not isinstance(template, dict) or not isinstance(template.get("sections"), list):
+        raise ValueError("Inline template must be an object with a sections array.")
+    template.setdefault("name", "custom")
+    if any(
+        not isinstance(section, dict) or not isinstance(section.get("name"), str)
+        for section in template["sections"]
+    ):
+        raise ValueError("Every section must have a name.")
+    return template
 
 
 def resolve_page_template(url: str, template_arg: str):
@@ -336,7 +333,7 @@ def resolve_page_template(url: str, template_arg: str):
     # 1. Inline JSON?
     if template_arg.startswith("{"):
         try:
-            tmpl = json.loads(template_arg)
+            tmpl = _parse_inline_template(template_arg)
             return tmpl, tmpl.get("name", "custom")
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid inline JSON template: {exc}") from exc
@@ -394,7 +391,8 @@ def _strip_source_markdown(content: str) -> str:
 
 def _resolve_source_url(source_template: str, url: str) -> str:
     if source_template == "{url}.md":
-        return f"{url.rstrip('/')}.md"
+        parsed = urllib.parse.urlsplit(url)
+        return parsed._replace(path=f"{parsed.path.rstrip('/')}.md", fragment="").geturl()
     return source_template.replace("{url}", url)
 
 
@@ -403,6 +401,7 @@ async def _fetch_source_markdown(source_url: str, template: dict | None, block_m
 
     Returns the stripped text if it looks like markdown, None otherwise.
     """
+    _validate_url(source_url)
     browser = await browser_manager.get_browser()
     context, page = await _new_fetch_page(browser, template, block_media)
     try:
@@ -411,16 +410,12 @@ async def _fetch_source_markdown(source_url: str, template: dict | None, block_m
         except Exception:
             return None
 
-        http_status = response.status if response else None
-        if http_status and http_status >= 400:
+        if response is None or response.status >= 400:
             return None
-
-        try:
-            text = await page.evaluate(
-                "() => document.body?.innerText || document.body?.textContent || ''"
-            )
-        except Exception:
-            text = await page.content()
+        content_type = response.headers.get("content-type", "").lower()
+        if "text/html" in content_type or "application/xhtml+xml" in content_type:
+            return None
+        text = await response.text()
 
         if not text or not isinstance(text, str):
             return None
@@ -440,7 +435,7 @@ async def _fetch_source_markdown(source_url: str, template: dict | None, block_m
 # ---------------------------------------------------------------------------
 
 ACCESS_DENIED_TITLE_PATTERNS = [
-    r"\b(?:captcha|robot|verify|access\s*denied|blocked|forbidden|not\s+available)\b",
+    r"\b(?:access\s*denied|forbidden|verify you are human|sorry, you have been blocked)\b",
     r"\b(?:unusual\s+traffic|are\s+you\s+a\s+human)\b",
     r"\b(?:429|403|401)\b",
 ]
@@ -494,7 +489,7 @@ HTTP_429_RETRY_DELAY_SECONDS = 2.0
 
 class HttpStatusError(RuntimeError):
     def __init__(self, status: int, url: str, retry_after: float | None = None):
-        super().__init__(f"Access denied: HTTP {status} when fetching {url}")
+        super().__init__(f"HTTP {status} when fetching {url}")
         self.status = status
         self.retry_after = retry_after
 
@@ -504,125 +499,96 @@ def _parse_retry_after(value: str | None) -> float:
         return HTTP_429_RETRY_DELAY_SECONDS
     try:
         seconds = float(value)
-        if seconds >= 0:
+        if math.isfinite(seconds) and seconds >= 0:
             return min(seconds, 30.0)
     except ValueError:
-        pass
+        try:
+            date = parsedate_to_datetime(value)
+            return min(max((date - datetime.now(timezone.utc)).total_seconds(), 0), 30)
+        except (ValueError, TypeError, OverflowError):
+            pass
     return HTTP_429_RETRY_DELAY_SECONDS
 
 
 async def _new_fetch_page(browser, template: dict | None, block_media: bool):
     context = await browser.new_context()
+    try:
+        if template and template.get("cookies"):
+            await context.add_cookies(template["cookies"])
+        page = await context.new_page()
+        if block_media:
+            block_types = set((template or {}).get("block_resources", ["image", "media", "font"]))
 
-    if template:
-        for c in template.get("cookies", []):
-            await context.add_cookies([c])
+            async def route_handler(route):
+                if route.request.resource_type in block_types:
+                    await route.abort()
+                else:
+                    await route.continue_()
 
-    page = await context.new_page()
+            if block_types:
+                await page.route("**/*", route_handler)
+        return context, page
+    except BaseException:
+        await context.close()
+        raise
 
-    if block_media:
-        if template:
-            block_types = set(template.get("block_resources", ["image", "media", "font"]))
-        else:
-            block_types = {"image", "media", "font"}
 
-        async def route_handler(route):
-            if route.request.resource_type in block_types:
-                await route.abort()
-            else:
-                await route.continue_()
-
-        await page.route("**/*", route_handler)
-
-    return context, page
+async def _fetch_html_once(url: str, template: dict | None, block_media: bool):
+    browser = await browser_manager.get_browser()
+    context, page = await _new_fetch_page(browser, template, block_media)
+    try:
+        # Wait for the response first so a later rendering timeout cannot hide its status.
+        response = await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+        status = response.status if response else None
+        if status is not None and status >= 400:
+            delay = (
+                _parse_retry_after(response.headers.get("retry-after")) if status == 429 else None
+            )
+            raise HttpStatusError(status, url, delay)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=5000)
+        except PlaywrightTimeoutError:
+            pass  # Long polling must not prevent extraction of an already loaded document.
+        content = await page.content()
+        if _detect_access_failure(status, BeautifulSoup(content, "html.parser")):
+            raise RuntimeError(f"Access denied: CAPTCHA or block page detected at {url}.")
+        return content
+    finally:
+        await context.close()
 
 
 async def fetch_html(url: str, template: dict | None, block_media: bool, retry: bool = True):
-    """Fetch page HTML through cloakbrowser.
-
-    Args:
-        url: Target URL.
-        template: Optional template dict (for cookies, block_resources).
-        block_media: Whether to block media; if True, blocks template.block_resources
-                     (or default ["image","media","font"] when no template).
-        retry: If True, retry once on network errors.
-    """
-    browser = await browser_manager.get_browser()
-    context, page = await _new_fetch_page(browser, template, block_media)
-
-    last_exc = None
+    """Fetch with a fresh context per attempt; retry rate limits and network failures once."""
+    _validate_url(url)
     attempts = FETCH_MAX_ATTEMPTS if retry else 1
     for attempt in range(attempts):
         try:
-            try:
-                response = await page.goto(url, wait_until="networkidle", timeout=15000)
-            except PlaywrightTimeoutError:
-                response = None  # partial render is OK
-
-            http_status = response.status if response else None
-            if http_status in (401, 403):
-                raise HttpStatusError(http_status, url)
-            if http_status == 429:
-                retry_after = _parse_retry_after(
-                    response.headers.get("retry-after") if response else None
-                )
-                raise HttpStatusError(http_status, url, retry_after)
-
-            content = await page.content()
-            soup = BeautifulSoup(content, "html.parser")
-
-            if _detect_access_failure(http_status, soup):
-                raise RuntimeError(
-                    f"Access to {url} was denied (HTTP {http_status or 'N/A'}). "
-                    "The site may require authentication, has blocked this request, "
-                    "or presented a CAPTCHA."
-                )
-
-            await context.close()
-            return content
-
-        except HttpStatusError as exc:
-            last_exc = exc
-            if attempt < attempts - 1 and exc.status == 429:
-                await context.close()
-                await asyncio.sleep(exc.retry_after or HTTP_429_RETRY_DELAY_SECONDS)
-                context, page = await _new_fetch_page(browser, template, block_media)
-                continue
-            await context.close()
-            raise
-
-        except (RuntimeError, ValueError):
-            await context.close()
-            raise
-
+            return await _fetch_html_once(url, template, block_media)
         except Exception as exc:
-            last_exc = exc
-            # Retry only on network-level errors (parity with index.js:
-            # retry on net::, ERR_, Navigation failed)
-            exc_msg = str(exc).lower()
-            is_network = (
-                "net::" in exc_msg
-                or "err_" in exc_msg
-                or "timeout" in exc_msg
-                or "connection" in exc_msg
-                or "econnrefused" in exc_msg
-                or "econnreset" in exc_msg
-                or "enotfound" in exc_msg
-                or "navigation" in exc_msg
-                or "navigating" in exc_msg
-            )
-            if attempt < attempts - 1 and is_network:
-                await asyncio.sleep(0.5)
-                # Need fresh page/context for retry
-                await context.close()
-                context, page = await _new_fetch_page(browser, template, block_media)
-                continue
-            await context.close()
-            raise RuntimeError(f"Failed to fetch {url} after retry: {last_exc}") from exc
-
-    # Should not reach here, but guard anyway
-    await context.close()
-    raise RuntimeError(f"Failed to fetch {url} after retry: {last_exc}")
+            if attempt == attempts - 1:
+                raise
+            if isinstance(exc, HttpStatusError):
+                if exc.status != 429:
+                    raise
+                delay = (
+                    exc.retry_after if exc.retry_after is not None else HTTP_429_RETRY_DELAY_SECONDS
+                )
+            elif isinstance(exc, PlaywrightTimeoutError) or any(
+                token in str(exc).lower()
+                for token in (
+                    "net::",
+                    "err_",
+                    "navigation",
+                    "navigating",
+                    "connection",
+                    "browser has been closed",
+                    "target closed",
+                )
+            ):
+                delay = 0.5
+            else:
+                raise
+            await asyncio.sleep(delay)
 
 
 # ---------------------------------------------------------------------------
@@ -878,7 +844,53 @@ def _format_children_section(section_data: dict) -> str:
     return "\n\n---\n\n".join(parts) if parts else ""
 
 
-def compose_sections(sections_data: list[dict], _template_name: str = "") -> str:
+def _is_comment_style(items: list[dict]) -> bool:
+    """Decide repeated-section formatting from the first item (parity with index.js)."""
+    if not items:
+        return False
+    keys = {str(key).lower() for key, value in items[0].items() if str(value).strip()}
+    return ("author" in keys or "user" in keys) and ("comment" in keys or "body" in keys)
+
+
+def _first_field(item: dict, keys: tuple[str, ...]) -> str:
+    for key in keys:
+        value = item.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+def _format_repeated_section(section_data: dict) -> str | None:
+    """Format a repeated section (parity with index.js children-multiple branch)."""
+    items = section_data.get("items", [])
+    if not items:
+        return None
+
+    name = section_data.get("name", "")
+    if _is_comment_style(items):
+        rendered = []
+        for item in items:
+            author = _first_field(item, ("Author", "author", "User", "user"))
+            comment = _first_field(item, ("Comment", "Body", "comment", "body"))
+            if author:
+                rendered.append(f"**{author}:**\n\n{comment}")
+            elif comment:
+                rendered.append(comment)
+        return f"## {name}\n\n" + "\n\n---\n\n".join(rendered) if rendered else None
+
+    item_parts = []
+    for item in items:
+        lines = [
+            f"    {key}: {str(value).strip()}"
+            for key, value in item.items()
+            if value and str(value).strip()
+        ]
+        if lines:
+            item_parts.append("\n".join(lines))
+    return f"## {name}\n\n" + "\n\n".join(item_parts) if item_parts else None
+
+
+def compose_sections(sections_data: list[dict]) -> str:
     """Compose extracted sections into a Markdown string (for webfetch)."""
     parts = []
 
@@ -894,10 +906,8 @@ def compose_sections(sections_data: list[dict], _template_name: str = "") -> str
         elif sec_type == "multiple":
             items = sec.get("items", [])
             if items:
-                lines = [f"## {name}", ""]
-                for item in items:
-                    lines.append(str(item).strip())
-                parts.append("\n".join(lines))
+                list_text = "\n".join(f"- {str(item).strip()}" for item in items)
+                parts.append(f"## {name}\n\n{list_text}")
 
         elif sec_type == "children":
             child_str = _format_children_section(sec)
@@ -905,20 +915,9 @@ def compose_sections(sections_data: list[dict], _template_name: str = "") -> str
                 parts.append(child_str)
 
         elif sec_type == "search_results":
-            items = sec.get("items", [])
-            if not items:
-                continue
-            lines = [f"## {name}", ""]
-            for i, item in enumerate(items, start=1):
-                title = str(item.get("Title", "")).strip()
-                url = str(item.get("URL", "")).strip()
-                snippet = str(item.get("Snippet", "")).strip()
-                lines.append(f"[{i}] {title}")
-                if url:
-                    lines.append(f"    URL: {url}")
-                if snippet:
-                    lines.append(f"    Snippet: {snippet}")
-            parts.append("\n".join(lines))
+            rendered = _format_repeated_section(sec)
+            if rendered:
+                parts.append(rendered)
 
     if not parts:
         return "(No content extracted from this page.)"
@@ -926,46 +925,57 @@ def compose_sections(sections_data: list[dict], _template_name: str = "") -> str
     return "\n\n---\n\n".join(parts)
 
 
-def compose_search_results(sections_data: list[dict], _template_name: str = "") -> str:
+def compose_search_results(sections_data: list[dict]) -> str:
     """Compose extracted sections into the websearch numbered-output format.
     Filters non-http URLs and Google internal links (parity with index.js)."""
-    for sec in sections_data:
-        if sec.get("type") == "search_results":
-            items = sec.get("items", [])
-            if not items:
-                return "## Results\n\nNo results found."
+    search_section = next(
+        (sec for sec in sections_data if sec.get("type") == "search_results"), None
+    )
+    items = search_section.get("items", []) if search_section else []
 
-            section_name = sec.get("name", "Results")
-            lines = [f"## {section_name}", ""]
-            for i, item in enumerate(items, start=1):
-                title = str(item.get("Title", "")).strip()
-                url = str(item.get("URL", "")).strip()
-                snippet = str(item.get("Snippet", "")).strip()
+    # Fall back to section-based output when no results exist
+    # (parity with index.js: composeSearchResults calls composeSections)
+    if not items:
+        return compose_sections(sections_data)
 
-                # Filter out non-http URLs and Google internal links
-                clean_url = url
-                if clean_url and not clean_url.startswith("http"):
-                    clean_url = ""
-                if clean_url and (
-                    "google.com/search" in clean_url or "support.google.com" in clean_url
-                ):
-                    clean_url = ""
+    section_name = search_section.get("name", "Results")
+    lines = [f"## {section_name}", ""]
+    number = 0
+    for item in items:
+        title = str(item.get("Title", "")).strip()
+        url = str(item.get("URL", "")).strip()
+        snippet = str(item.get("Snippet", "")).strip()
 
-                if not title:
-                    continue
+        # Filter out non-http URLs and Google internal links
+        clean_url = url
+        try:
+            parsed = urllib.parse.urlsplit(clean_url)
+            if (
+                parsed.scheme not in ("http", "https")
+                or not parsed.hostname
+                or parsed.hostname == "support.google.com"
+                or (
+                    parsed.hostname in ("google.com", "www.google.com") and parsed.path == "/search"
+                )
+            ):
+                clean_url = ""
+        except ValueError:
+            clean_url = ""
 
-                lines.append(f"[{i}] {title}")
-                if clean_url:
-                    lines.append(f"    URL: {clean_url}")
-                if snippet:
-                    lines.append(f"    Snippet: {snippet}")
-            if len(lines) <= 2:  # only header, no items
-                return "## Results\n\nNo results found."
-            return "\n".join(lines)
+        if not title:
+            continue
 
-    # Fall back to section-based output when no search_results section exists
-    # (parity with index.js: composeSearchResults falls back to composeSections)
-    return compose_sections(sections_data, _template_name)
+        number += 1
+        lines.append(f"[{number}] {title}")
+        if clean_url:
+            lines.append(f"    URL: {clean_url}")
+        if snippet:
+            lines.append(f"    Snippet: {snippet}")
+
+    # Header only, nothing rendered (parity with index.js)
+    if len(lines) <= 2:
+        return "(No content extracted from this page.)"
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -973,7 +983,7 @@ def compose_search_results(sections_data: list[dict], _template_name: str = "") 
 # ---------------------------------------------------------------------------
 
 
-# Per-spec default remove selectors when a template does not specify its own.
+# Default cleanup for templates that omit an explicit removal list.
 _SPEC_DEFAULT_REMOVE = [
     "script",
     "style",
@@ -1008,7 +1018,7 @@ DEFAULT_REMOVE_SELECTORS = [
 ]
 
 
-def generic_fallback(html_content: str, _url: str = "") -> str:
+def generic_fallback(html_content: str) -> str:
     """Strip noise and convert entire page to Markdown."""
     soup = BeautifulSoup(html_content, "html.parser")
 
@@ -1043,7 +1053,7 @@ def _resolve_search_candidate(
     template_name = resolve_search_template(engine)
     if template_name.startswith("{"):
         try:
-            template = json.loads(template_name)
+            template = _parse_inline_template(template_name)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Invalid inline JSON template: {exc}") from exc
     else:
@@ -1060,11 +1070,16 @@ def _resolve_search_candidate(
             "template (no url_template). Use webfetch for page templates."
         )
 
-    engine_key = engine if engine in ("duckduckgo", "google") else "custom"
+    engine_key = {"google-search": "google", "duckduckgo-search": "duckduckgo"}.get(
+        template_name, "custom"
+    )
     params = map_search_params(query, engine_key, region, safe_search)
     resolved_url = resolve_url_template(template, params)
-    if engine_key == "google" and safe_search is True:
-        resolved_url += "&safe=active"
+    if engine_key == "google" and safe_search is not None:
+        parsed = urllib.parse.urlsplit(resolved_url)
+        params = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+        params["safe"] = "active" if safe_search else "off"
+        resolved_url = parsed._replace(query=urllib.parse.urlencode(params)).geturl()
     return engine, template, resolved_url
 
 
@@ -1121,7 +1136,7 @@ async def websearch(
     engine: str = "duckduckgo",
     region: str | None = None,
     safe_search: bool | None = None,
-    max_results: int = 10,
+    max_results: Annotated[int, Field(strict=True, gt=0)] = 10,
     block_media: bool = True,
 ) -> str:
     """
@@ -1135,6 +1150,9 @@ async def websearch(
         max_results: Max results to extract. Default: 10.
         block_media: Block images/media/fonts. Default: True.
     """
+    if not query.strip():
+        raise ValueError("query must not be empty")
+    _validate_integer(max_results, "max_results", 1)
     candidates = _resolve_search_candidates(engine, query, region, safe_search)
     last_exc = None
 
@@ -1143,16 +1161,14 @@ async def websearch(
             html = await fetch_html(resolved_url, template, block_media, retry=True)
             soup = BeautifulSoup(html, "html.parser")
             sections_data = extract_template(
-                soup, template, origin="", max_results_override=max_results
+                soup, template, origin=resolved_url, max_results_override=max_results
             )
             result_section = next(
                 (section for section in sections_data if section.get("type") == "search_results"),
                 None,
             )
             if result_section and result_section.get("items"):
-                result = compose_search_results(
-                    sections_data, template.get("name", selected_engine)
-                )
+                result = compose_search_results(sections_data)
                 if selected_engine != engine:
                     result = (
                         f"[websearch: {engine} was unavailable; results are from "
@@ -1170,8 +1186,8 @@ async def websearch(
 async def webfetch(
     url: str,
     template: str = "auto",
-    start_index: int = 0,
-    max_length: int = 10000,
+    start_index: Annotated[int, Field(strict=True, ge=0)] = 0,
+    max_length: Annotated[int, Field(strict=True, gt=0)] = 10000,
     block_media: bool = True,
 ) -> str:
     """
@@ -1195,15 +1211,13 @@ async def webfetch(
       javadoc, github-repo, github-issue, npm-package, pypi-package,
       crates-package, docker-hub, docs-rs, docs-page, raw
     """
+    _validate_url(url)
+    _validate_integer(start_index, "start_index", 0)
+    _validate_integer(max_length, "max_length", 1)
     # 1. Resolve template
     matched_template, template_name = resolve_page_template(url, template)
 
-    # 2. Determine origin for resolve_href transform
-    try:
-        parsed = urllib.parse.urlparse(url)
-        origin = f"{parsed.scheme}://{parsed.netloc}"
-    except Exception:
-        origin = ""
+    origin = url
 
     # 3. Try source markdown if template specifies source_url
     source_md = None
@@ -1222,12 +1236,13 @@ async def webfetch(
 
         if matched_template is not None:
             sections_data = extract_template(soup, matched_template, origin=origin)
-            output = compose_sections(sections_data, template_name)
+            output = compose_sections(sections_data)
         else:
-            output = generic_fallback(html, url)
+            output = generic_fallback(html)
 
     # 6. Pagination
     total_length = len(output)
+    start_index = min(start_index, total_length)
     paginated = output[start_index : start_index + max_length]
 
     showing_end = start_index + len(paginated)

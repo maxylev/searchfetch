@@ -2,9 +2,7 @@
   "name": "reddit",
   "description": "Reddit post — title, content, and comments",
   "order": 13,
-  "url_patterns": [
-    "^https?://(?:www\\.|old\\.)?reddit\\.com/r/[^/]+/comments/[^/]+"
-  ],
+  "url_patterns": ["^https?://(?:www\\.|old\\.)?reddit\\.com/r/[^/]+/comments/[^/]+"],
   "remove": [
     "script",
     "style",

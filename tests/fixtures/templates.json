@@ -1,0 +1,157 @@
+[
+  {
+    "template": "raw",
+    "html": "<html><body><p>Raw fixture content</p></body></html>",
+    "expect": ["Raw fixture content"],
+    "absent": []
+  },
+  {
+    "template": "github-repo",
+    "html": "<html><head><meta name='description' content='Example repo description'></head><body><table aria-labelledby='folders-and-files'><tr><td>README.md</td></tr></table><article class='markdown-body entry-content container-lg'><p>Hello from the README</p></article><span class='octicon'>OCTICONNOISE</span></body></html>",
+    "expect": ["Example repo description", "README.md", "Hello from the README"],
+    "absent": ["OCTICONNOISE"]
+  },
+  {
+    "template": "github-issue",
+    "html": "<html><body><main class='js-discussion'><h1 class='js-issue-title'>Fix the crash</h1><span class='State'>Open</span><div class='TimelineItem'><a class='author'>alice</a><relative-time datetime='2026-01-01T00:00:00Z'>Jan 1</relative-time><div class='comment-body'><p>Issue body text</p></div></div><div class='TimelineItem'><a class='author'>bob</a><relative-time datetime='2026-01-02T00:00:00Z'>Jan 2</relative-time><div class='comment-body'><p>Second comment text</p></div></div></main><span class='anchor'>ANCHORNOISE</span></body></html>",
+    "expect": [
+      "Fix the crash",
+      "Open",
+      "alice",
+      "2026-01-01T00:00:00Z",
+      "Issue body text",
+      "bob",
+      "Second comment text"
+    ],
+    "absent": ["ANCHORNOISE"]
+  },
+  {
+    "template": "npm-package",
+    "html": "<html><head><meta name='description' content='NPM fixture description'></head><body><nav>NAVNOISE</nav><h1>left-pad</h1><span data-testid='package-version'>1.3.0</span><div data-testid='keywords'><a>padding</a><a>strings</a></div><div id='readme'><p>NPM readme text</p></div></body></html>",
+    "expect": [
+      "left-pad",
+      "1.3.0",
+      "NPM fixture description",
+      "padding",
+      "strings",
+      "NPM readme text"
+    ],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "pypi-package",
+    "html": "<html><head><meta name='description' content='PyPI page description'></head><body><nav>NAVNOISE</nav><h1 class='package-header__name'>requests</h1><p class='package-header__description'>HTTP for Humans</p><ul class='sidebar-section__list'><li>License: Apache-2.0</li><li>Author: Kenneth</li></ul><div id='description'><p>PyPI readme text</p></div></body></html>",
+    "expect": [
+      "requests",
+      "HTTP for Humans",
+      "License: Apache-2.0",
+      "Author: Kenneth",
+      "PyPI readme text"
+    ],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "crates-package",
+    "html": "<html><head><meta name='description' content='Crates fixture description'></head><body><nav>NAVNOISE</nav><h1>serde</h1><div class='crate-readme'><p>Crate readme text</p></div></body></html>",
+    "expect": ["serde", "Crates fixture description", "Crate readme text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "docker-hub",
+    "html": "<html><head><meta name='description' content='Docker fixture description'></head><body><nav>NAVNOISE</nav><h1>postgres</h1><article><p>Docker readme text</p></article></body></html>",
+    "expect": ["postgres", "Docker fixture description", "Docker readme text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "docs-rs",
+    "html": "<html><body><nav class='sidebar'>NAVNOISE</nav><h1 class='crate-title'>serde</h1><h1 class='fqn'>Struct Item</h1><main id='main-content'><p>Docs.rs content text</p></main></body></html>",
+    "expect": ["serde", "Struct Item", "Docs.rs content text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "docs-page",
+    "html": "<html><body><nav>NAVNOISE</nav><h1>Getting Started</h1><main role='main'><p>Docs page content text</p></main></body></html>",
+    "expect": ["Getting Started", "Docs page content text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "gitlab",
+    "html": "<html><head><meta name='description' content='GitLab fixture description'></head><body><nav>NAVNOISE</nav><h1>gitlab</h1><table data-qa-selector='file_tree_table'><tr><td>README.md</td></tr></table><div class='readme-holder'><p>GitLab readme text</p></div></body></html>",
+    "expect": ["gitlab", "GitLab fixture description", "README.md", "GitLab readme text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "go-pkg",
+    "html": "<html><body><nav>NAVNOISE</nav><h1>fmt</h1><section class='Documentation-overview'><p>Go overview text</p></section><section class='Documentation-content'><p>Go docs text</p></section></body></html>",
+    "expect": ["fmt", "Go overview text", "Go docs text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "wikipedia",
+    "html": "<html><body><nav>NAVNOISE</nav><h1 id='firstHeading'>Rust</h1><div id='mw-content-text'><div class='mw-parser-output'><p>Wikipedia content text</p><span class='mw-editsection'>EDITNOISE</span></div></div></body></html>",
+    "expect": ["Rust", "Wikipedia content text"],
+    "absent": ["NAVNOISE", "EDITNOISE"]
+  },
+  {
+    "template": "reddit",
+    "html": "<html><body><a href='/r/rust/'>r/rust</a><h1>Rust 1.96 is out</h1><a href='/user/manpacket/'>manpacket</a><a slot='external-anchor' href='https://example.com/rust'>release notes</a><div slot='text-body'><p>Reddit content text</p></div><div class='sidebar'>SIDEBARNOISE</div></body></html>",
+    "expect": [
+      "r/rust",
+      "Rust 1.96 is out",
+      "manpacket",
+      "https://example.com/rust",
+      "Reddit content text"
+    ],
+    "absent": ["SIDEBARNOISE"]
+  },
+  {
+    "template": "mdn-web-docs",
+    "html": "<html><body><nav>NAVNOISE</nav><h1>Array</h1><div id='content'><p>MDN content text</p></div></body></html>",
+    "expect": ["Array", "MDN content text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "devto",
+    "html": "<html><body><h1>JavaScript Visualized</h1><div class='crayons-article__header__meta'><a>Lydia Hallie</a></div><div id='article-body'><p>Devto content text</p></div><div class='sidebar'>SIDEBARNOISE</div></body></html>",
+    "expect": ["JavaScript Visualized", "Lydia Hallie", "Devto content text"],
+    "absent": ["SIDEBARNOISE"]
+  },
+  {
+    "template": "javadoc",
+    "html": "<html><body><nav>NAVNOISE</nav><div class='header'><h2>ArrayList</h2></div><main role='main'><p>Javadoc content text</p></main></body></html>",
+    "expect": ["ArrayList", "Javadoc content text"],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "youtube",
+    "html": "<html><head><meta name='title' content='Rick Astley - Never Gonna Give You Up'></head><body><header>HEADERNOISE</header><span id='owner'><a>Rick Astley</a></span><div id='description-inline-expander'><p>YouTube description text</p></div></body></html>",
+    "expect": ["Rick Astley - Never Gonna Give You Up", "Rick Astley", "YouTube description text"],
+    "absent": ["HEADERNOISE"]
+  },
+  {
+    "template": "duckduckgo-search",
+    "html": "<html><body><nav>NAVNOISE</nav><div class='result'><div class='result__title'><a href='/l/?uddg=https%3A%2F%2Fexample.com%2Fone'>First result</a></div><div class='result__snippet'>First snippet</div></div><div class='result'><div class='result__title'><a href='https://example.com/two'>Second result</a></div><div class='result__snippet'>Second snippet</div></div></body></html>",
+    "expect": [
+      "First result",
+      "https://example.com/one",
+      "First snippet",
+      "Second result",
+      "https://example.com/two",
+      "Second snippet"
+    ],
+    "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "google-search",
+    "html": "<html><body><nav>NAVNOISE</nav><div class='g'><a href='/url?q=https://example.com/g1'><h3>Google result one</h3></a><div data-sncf='1'><span>Google snippet one</span></div></div><div class='g'><a href='/url?q=https://example.com/g2'><h3>Google result two</h3></a><div data-sncf='2'><span>Google snippet two</span></div></div></body></html>",
+    "expect": [
+      "Google result one",
+      "https://example.com/g1",
+      "Google snippet one",
+      "Google result two",
+      "https://example.com/g2",
+      "Google snippet two"
+    ],
+    "absent": ["NAVNOISE"]
+  }
+]

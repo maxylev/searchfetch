@@ -9,33 +9,10 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Helpers: lightweight reimplementations of template-loading internals so we
-# can test without spawning a browser or importing the MCP server.
-# ---------------------------------------------------------------------------
+import server
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
-
-
-def load_all_templates():
-    """Load every *.json template from the templates/ directory."""
-    json_files = sorted(TEMPLATES_DIR.glob("*.json"))
-    if not json_files:
-        pytest.fail(f"No template JSON files found in '{TEMPLATES_DIR}'")
-
-    templates = []
-    for filepath in json_files:
-        data = json.loads(filepath.read_text(encoding="utf-8"))
-        name = data.get("name")
-        if not name or not isinstance(name, str):
-            pytest.fail(f"Template '{filepath}' is missing a valid 'name' field")
-        templates.append(data)
-
-    templates.sort(key=lambda t: t.get("order", 999))
-    return templates
-
-
-ALL_TEMPLATES = load_all_templates()
+ALL_TEMPLATES = list(server.BUILTIN_TEMPLATES.values())
 TEMPLATES_BY_NAME = {t["name"]: t for t in ALL_TEMPLATES}
 
 
@@ -47,7 +24,7 @@ TEMPLATES_BY_NAME = {t["name"]: t for t in ALL_TEMPLATES}
 class TestTemplateJsonValidity:
     def test_all_files_are_valid_json(self):
         json_files = sorted(TEMPLATES_DIR.glob("*.json"))
-        assert len(json_files) >= 18  # originals + new templates
+        assert len(json_files) == len(ALL_TEMPLATES)
         for fp in json_files:
             data = json.loads(fp.read_text(encoding="utf-8"))
             assert isinstance(data, dict), f"{fp.name}: not a JSON object"
@@ -1444,7 +1421,7 @@ class TestServerImport:
         (project_dir / "templates").mkdir(parents=True)
 
         monkeypatch.setattr(server, "__file__", str(module_dir / "server.py"))
-        monkeypatch.setattr(server.sys, "prefix", str(tmp_path / "venv"))
+        monkeypatch.setattr(server, "files", lambda _package: packaged_templates)
         monkeypatch.chdir(project_dir)
 
         assert server._load_builtin_templates() == {"packaged": {"name": "packaged", "order": 1}}
@@ -1460,7 +1437,7 @@ class TestServerImport:
     def test_server_version_is_set(self):
         import server
 
-        assert server.__version__ == "3.3.3"
+        assert server.__version__ == "3.3.4"
 
     def test_detects_long_google_block_page(self):
         from bs4 import BeautifulSoup
@@ -1632,8 +1609,8 @@ class TestPythonSearchParamMapping:
 
         params = server.map_search_params("test query", "google", "us-en", None)
         assert params["query"] == "test query"
-        assert params["hl"] == "us"
-        assert params["gl"] == "en"
+        assert params["hl"] == "en"
+        assert params["gl"] == "us"
 
     def test_google_safe_search(self):
         import server
@@ -1840,10 +1817,10 @@ class TestPythonSelectHelpers:
 class TestPythonMetadata:
     """Test Python server version and metadata."""
 
-    def test_version_is_3_3_3(self):
+    def test_version_is_3_3_4(self):
         import server
 
-        assert server.__version__ == "3.3.3"
+        assert server.__version__ == "3.3.4"
 
     def test_server_name_is_searchfetch(self):
         import server

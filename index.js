@@ -10,6 +10,8 @@ import { z } from "zod";
 import { launch, ensureBinary } from "cloakbrowser";
 import * as cheerio from "cheerio";
 import TurndownService from "turndown";
+import { splitSelectors } from "./lib/selectors.js";
+import { paginate } from "./lib/output.js";
 
 // === BROWSER MANAGER =====================================================
 class BrowserManager {
@@ -34,12 +36,9 @@ class BrowserManager {
       .then((browser) => {
         this.browser = browser;
         this.browser.on("disconnected", () => {
-          this.browser = null;
+          if (this.browser === browser) this.browser = null;
         });
         return browser;
-      })
-      .catch((err) => {
-        throw err;
       })
       .finally(() => {
         this.launchPromise = null;
@@ -49,10 +48,9 @@ class BrowserManager {
   }
 
   async close() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    const browser = await (this.launchPromise ?? this.browser);
+    this.browser = null;
+    if (browser) await browser.close();
   }
 }
 
@@ -114,6 +112,24 @@ function loadBuiltinTemplates() {
 
 const BUILTIN_TEMPLATES = loadBuiltinTemplates();
 
+function parseInlineTemplate(value) {
+  const template = JSON.parse(value);
+  if (
+    !template ||
+    typeof template !== "object" ||
+    Array.isArray(template) ||
+    !Array.isArray(template.sections)
+  ) {
+    throw new Error("Inline template must be an object with a sections array.");
+  }
+  template.name ??= "custom";
+  for (const section of template.sections) {
+    if (!section || typeof section.name !== "string")
+      throw new Error("Every section must have a name.");
+  }
+  return template;
+}
+
 // === TEMPLATE LOOKUP =====================================================
 const TEMPLATE_MAP = new Map();
 for (const t of BUILTIN_TEMPLATES) {
@@ -148,48 +164,27 @@ function detectTemplateByUrl(url) {
 
 // === URL TEMPLATE RESOLUTION =============================================
 
+function validateUrl(value) {
+  const url = new URL(value);
+  if (!["http:", "https:"].includes(url.protocol) || !url.hostname)
+    throw new Error("URL must use HTTP or HTTPS and include a hostname");
+  return value;
+}
+
 function resolveUrlTemplate(template, providedParams) {
-  const urlParams = template.url_params || {};
-  let url = template.url_template;
-  if (!url) return null;
-
-  let match;
-  const re = /\{(\w+)\}/g;
-  while ((match = re.exec(url)) !== null) {
-    const name = match[1];
-    const def = urlParams[name] || {};
-
-    let value;
-    if (
-      name in providedParams &&
-      providedParams[name] !== null &&
-      providedParams[name] !== undefined
-    ) {
-      value = String(providedParams[name]);
-    } else if (def.default !== undefined) {
-      value = String(def.default);
-    } else if (def.required) {
+  if (!template.url_template) throw new Error(`Template '${template.name}' has no url_template.`);
+  return template.url_template.replace(/\{(\w+)\}/g, (_, name) => {
+    const def = template.url_params?.[name] ?? {};
+    let value = Object.hasOwn(providedParams, name) ? providedParams[name] : undefined;
+    value ??= def.default;
+    if (value == null && def.required) {
       throw new Error(
         `Required URL parameter '${name}' not provided for template '${template.name}'.`,
       );
-    } else {
-      value = "";
     }
-
-    if (def.encode === "url") {
-      value = encodeURIComponent(value);
-    }
-
-    url = url.replace(match[0], value);
-  }
-
-  // Remove any remaining unreplaced placeholders
-  url = url
-    .replace(/\{\w+\}/g, "")
-    .replace(/&{2,}/g, "&")
-    .replace(/\?&/, "?");
-
-  return url;
+    value = String(value ?? "");
+    return def.encode === "url" ? encodeURIComponent(value) : value;
+  });
 }
 
 // === SEARCH PARAM MAPPING ================================================
@@ -216,8 +211,8 @@ function mapSearchParams(engine, query, region, safeSearch) {
   } else if (resolved === "google-search") {
     if (region !== null && region !== undefined) {
       const parts = region.split("-");
-      params.hl = parts[0];
-      params.gl = parts.length > 1 ? parts[1] : parts[0];
+      params.gl = parts[0];
+      if (parts.length > 1) params.hl = parts[1];
     }
   }
 
@@ -247,7 +242,7 @@ function parseRetryAfterMs(value) {
 }
 
 function makeHttpStatusError(status, url, retryAfterMs = null) {
-  const err = new Error(`Access denied: HTTP ${status} when fetching ${url}`);
+  const err = new Error(`HTTP ${status} when fetching ${url}`);
   err.httpStatus = status;
   err.retryAfterMs = retryAfterMs;
   return err;
@@ -258,10 +253,8 @@ function isAccessDenied($) {
   const bodyText = ($("body").text() || "").replace(/\s+/g, " ").trim().toLowerCase();
 
   const titleDenyPatterns = [
-    "captcha",
     "are you a robot",
     "access denied",
-    "blocked",
     "forbidden",
     "unusual traffic",
     "sorry, you have been blocked",
@@ -269,7 +262,6 @@ function isAccessDenied($) {
     "one more step",
     "security check",
     "ddos protection",
-    "cloudflare",
   ];
 
   if (titleDenyPatterns.some((pattern) => title.includes(pattern))) return true;
@@ -292,6 +284,7 @@ function isAccessDenied($) {
 }
 
 async function fetchHtml(url, template, blockMedia) {
+  validateUrl(url);
   const browser = await browserManager.getBrowser();
   const context = await browser.newContext();
 
@@ -315,37 +308,27 @@ async function fetchHtml(url, template, blockMedia) {
           await page.route("**/*", (route) => {
             const type = route.request().resourceType();
             if (blockedTypes.includes(type)) {
-              route.abort();
+              return route.abort();
             } else {
-              route.continue();
+              return route.continue();
             }
           });
         }
       }
 
-      let response;
-      try {
-        response = await page.goto(url, {
-          waitUntil: "networkidle",
-          timeout: 15000,
-        });
-      } catch (_navError) {
-        // Allow partial rendering on timeout only
-        if (!_navError.message?.includes("timeout") && !_navError.message?.includes("Timeout")) {
-          throw _navError;
-        }
-      }
-
-      // Check HTTP status for access failures
-      if (response) {
+      const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+      if (response && response.status() >= 400) {
         const status = response.status();
-        if ([401, 403, 429].includes(status)) {
-          throw makeHttpStatusError(
-            status,
-            url,
-            status === 429 ? parseRetryAfterMs(response.headers()["retry-after"]) : null,
-          );
-        }
+        throw makeHttpStatusError(
+          status,
+          url,
+          status === 429 ? parseRetryAfterMs(response.headers()["retry-after"]) : null,
+        );
+      }
+      try {
+        await page.waitForLoadState("networkidle", { timeout: 5000 });
+      } catch (err) {
+        if (err.name !== "TimeoutError") throw err;
       }
 
       const pageContent = await page.content();
@@ -380,7 +363,10 @@ async function fetchHtmlWithRetry(url, template, blockMedia) {
       }
       if (
         attempt < FETCH_MAX_ATTEMPTS - 1 &&
-        (err.message.includes("net::") ||
+        (err.name === "TimeoutError" ||
+          err.message.includes("browser has been closed") ||
+          err.message.includes("Target closed") ||
+          err.message.includes("net::") ||
           err.message.includes("ERR_") ||
           err.message.includes("Navigation failed") ||
           err.message.includes("navigating"))
@@ -423,12 +409,16 @@ function stripSourceMarkdown(content) {
 
 function resolveSourceUrl(sourceTemplate, url) {
   if (sourceTemplate === "{url}.md") {
-    return `${url.replace(/\/+$/, "")}.md`;
+    const parsed = new URL(url);
+    parsed.pathname = `${parsed.pathname.replace(/\/+$/, "")}.md`;
+    parsed.hash = "";
+    return parsed.href;
   }
   return sourceTemplate.replace("{url}", url);
 }
 
 async function fetchSourceMarkdown(sourceUrl, template, blockMedia) {
+  validateUrl(sourceUrl);
   const browser = await browserManager.getBrowser();
   const context = await browser.newContext();
 
@@ -447,8 +437,8 @@ async function fetchSourceMarkdown(sourceUrl, template, blockMedia) {
         if (blockedTypes.length > 0) {
           await page.route("**/*", (route) => {
             const type = route.request().resourceType();
-            if (blockedTypes.includes(type)) route.abort();
-            else route.continue();
+            if (blockedTypes.includes(type)) return route.abort();
+            else return route.continue();
           });
         }
       }
@@ -463,16 +453,11 @@ async function fetchSourceMarkdown(sourceUrl, template, blockMedia) {
         return null;
       }
 
-      if (response && response.status() >= 400) return null;
-
-      let text;
-      try {
-        text = await page.evaluate(
-          "() => document.body?.innerText || document.body?.textContent || ''",
-        );
-      } catch (_) {
-        text = await page.content();
-      }
+      if (!response || response.status() >= 400) return null;
+      const contentType = (response.headers()["content-type"] ?? "").toLowerCase();
+      if (contentType.includes("text/html") || contentType.includes("application/xhtml+xml"))
+        return null;
+      let text = await response.text();
 
       if (!text || typeof text !== "string") return null;
 
@@ -502,10 +487,7 @@ const DEFAULT_REMOVE_SELECTORS = [
 ];
 
 function applyRemove($, template) {
-  const removeSelectors =
-    template && template.remove && template.remove.length > 0
-      ? template.remove
-      : DEFAULT_REMOVE_SELECTORS;
+  const removeSelectors = template?.remove ?? DEFAULT_REMOVE_SELECTORS;
 
   for (const selector of removeSelectors) {
     try {
@@ -528,77 +510,26 @@ function applyRemove($, template) {
 
 // === EXTRACTION ENGINE ===================================================
 
-/**
- * Find elements matching selector, scoped to $parent.
- * Search order: descendants → closest ancestor → ancestor subtrees (up to 4 levels).
- */
+/** Search descendants and the enclosing element, never neighboring result subtrees. */
 function findScoped($parent, selector) {
-  if (!selector || selector.trim() === "") {
-    return $parent;
-  }
-
-  // 1. Descendants
-  let result = $parent.find(selector);
-  if (result.length > 0) return result;
-
-  // 2. Closest ancestor matching selector
-  result = $parent.closest(selector);
-  if (result.length > 0) return result;
-
-  // 3. Ancestor subtrees (up to 4 levels up)
-  let ancestor = $parent.parent();
-  for (let i = 0; i < 4 && ancestor.length > 0; i++) {
-    result = ancestor.find(selector);
-    if (result.length > 0) return result;
-    ancestor = ancestor.parent();
-  }
-
-  return $parent.find("__nonexistent__");
+  if (!selector?.trim()) return $parent;
+  const descendants = $parent.find(selector);
+  return descendants.length ? descendants : $parent.closest(selector);
 }
 
-/**
- * Try comma-separated selectors in order; first match wins.
- */
 function findFirstMatch($parent, selectorStr) {
-  if (!selectorStr || selectorStr.trim() === "") {
-    return $parent;
+  for (const selector of splitSelectors(selectorStr)) {
+    const matches = findScoped($parent, selector);
+    if (matches.length) return matches;
   }
-
-  const selectors = selectorStr
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  for (const sel of selectors) {
-    const matches = findScoped($parent, sel);
-    if (matches.length > 0) return matches;
-  }
-
-  return $parent.find("__nonexistent__");
+  return $parent.slice(0, 0);
 }
 
-/**
- * Resolve top-level elements for a section (document-wide with fallback).
- */
 function resolveTopElements($, selectorStr) {
-  if (!selectorStr || selectorStr.trim() === "") {
-    return $("body");
+  for (const selector of splitSelectors(selectorStr)) {
+    const matches = selector ? $(selector) : $("body");
+    if (matches.length) return matches;
   }
-
-  const selectors = selectorStr
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  for (const sel of selectors) {
-    try {
-      const matches = $(sel);
-      if (matches.length > 0) return matches;
-    } catch (_) {
-      // Skip invalid selectors
-    }
-  }
-
   return $();
 }
 
@@ -632,7 +563,7 @@ function applyTransform(value, transform, origin) {
             const queryString = result.split("?")[1] || "";
             const params = new URLSearchParams(queryString);
             const uddg = params.get("uddg");
-            if (uddg) result = decodeURIComponent(uddg);
+            if (uddg) result = uddg;
           } catch (_) {
             // Leave as-is
           }
@@ -648,7 +579,7 @@ function applyTransform(value, transform, origin) {
         break;
 
       case "resolve_href":
-        if (origin && result.startsWith("/") && !result.startsWith("//")) {
+        if (origin) {
           try {
             result = new URL(result, origin).href;
           } catch (_) {
@@ -735,19 +666,19 @@ function extractSection($, section, context) {
 
   // Determine limit
   let limit = elements.length;
-  if (section.multiple && section.max_items) {
+  if (section.multiple && section.max_items != null) {
     limit = Math.min(limit, section.max_items);
   }
   // Override max_items with max_results for first multiple+children section
   if (
     context.isWebsearch &&
-    context.maxResultsOverride &&
+    context.maxResultsOverride != null &&
     !context._maxResultsConsumed &&
     section.multiple &&
     section.children &&
     section.children.length > 0
   ) {
-    limit = Math.min(limit, context.maxResultsOverride);
+    limit = Math.min(elements.length, context.maxResultsOverride);
     context._maxResultsConsumed = true;
   }
 
@@ -808,20 +739,8 @@ function extractTemplate($, template, context) {
   const results = [];
 
   for (const section of template.sections) {
-    try {
-      const result = extractSection($, section, context);
-      if (result !== null) {
-        results.push(result);
-      }
-    } catch (err) {
-      // Required-section errors must surface to the user.
-      if (err.message && err.message.includes("Required section")) {
-        throw err;
-      }
-      // Non-required extraction failures: selector mismatches or format
-      // processing issues. Broad templates legitimately don't match every
-      // section on every page — skip and continue.
-    }
+    const result = extractSection($, section, context);
+    if (result !== null) results.push(result);
   }
 
   return results;
@@ -829,13 +748,15 @@ function extractTemplate($, template, context) {
 
 // === COMPOSITION: WEBFETCH ===============================================
 
-function isCommentStyle(result) {
-  if (!result.items || result.items.length === 0) return false;
-  const first = result.items[0];
-  const keys = Object.keys(first).map((k) => k.toLowerCase());
+function isCommentStyle(items) {
+  if (!items || items.length === 0) return false;
+  // Ignore empty fields so Python's empty-string placeholders decide identically.
+  const keys = Object.entries(items[0])
+    .filter(([, value]) => String(value ?? "").trim())
+    .map(([key]) => key.toLowerCase());
   return (
-    (keys.includes("author") && (keys.includes("comment") || keys.includes("body"))) ||
-    (keys.includes("user") && (keys.includes("comment") || keys.includes("body")))
+    (keys.includes("author") || keys.includes("user")) &&
+    (keys.includes("comment") || keys.includes("body"))
   );
 }
 
@@ -850,7 +771,7 @@ function composeSections(extracted, template, startIndex, maxLength) {
       }
     } else if (result.type === "list") {
       if (result.items && result.items.length > 0) {
-        const listText = result.items.map((item) => `- ${item}`).join("\n");
+        const listText = result.items.map((item) => `- ${String(item).trim()}`).join("\n");
         parts.push(`## ${result.section.name}\n\n${listText}`);
       }
     } else if (result.type === "children") {
@@ -863,12 +784,15 @@ function composeSections(extracted, template, startIndex, maxLength) {
       }
     } else if (result.type === "children-multiple") {
       if (result.items && result.items.length > 0) {
-        if (isCommentStyle(result)) {
+        if (isCommentStyle(result.items)) {
           const commentParts = [];
           for (const item of result.items) {
-            const author = item["Author"] || item["author"] || item["User"] || item["user"] || "";
-            const comment =
-              item["Comment"] || item["Body"] || item["comment"] || item["body"] || "";
+            const author = String(
+              item["Author"] || item["author"] || item["User"] || item["user"] || "",
+            ).trim();
+            const comment = String(
+              item["Comment"] || item["Body"] || item["comment"] || item["body"] || "",
+            ).trim();
             if (author) {
               commentParts.push(`**${author}:**\n\n${comment}`);
             } else if (comment) {
@@ -901,18 +825,7 @@ function composeSections(extracted, template, startIndex, maxLength) {
     return "(No content extracted from this page.)";
   }
 
-  const full = parts.join("\n\n---\n\n");
-  const totalLength = full.length;
-  const paginated = full.substring(startIndex, startIndex + maxLength);
-
-  const templateName = template ? template.name : "auto";
-  let metadata = `\n\n---\n[webfetch: template="${templateName}", showing characters ${startIndex} to ${startIndex + paginated.length} of ${totalLength} total.`;
-  if (startIndex + maxLength < totalLength) {
-    metadata += ` Use start_index=${startIndex + maxLength} to read more.`;
-  }
-  metadata += `]`;
-
-  return paginated + metadata;
+  return paginate(parts.join("\n\n---\n\n"), template?.name ?? "auto", startIndex, maxLength);
 }
 
 // === COMPOSITION: WEBSEARCH ==============================================
@@ -931,7 +844,7 @@ function composeSearchResults(extracted) {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const num = i + 1;
+    const num = parts.length + 1;
 
     const title = item["Title"] || item["title"] || Object.values(item)[0] || "";
     const url = item["URL"] || item["url"] || item["Url"] || "";
@@ -939,14 +852,17 @@ function composeSearchResults(extracted) {
 
     // Filter out non-http URLs and google internal links
     let cleanUrl = url;
-    if (cleanUrl && !cleanUrl.startsWith("http")) {
-      cleanUrl = ""; // Skip internal/non-web URLs
-    }
-    if (
-      cleanUrl &&
-      (cleanUrl.includes("google.com/search") || cleanUrl.includes("support.google.com"))
-    ) {
-      cleanUrl = ""; // Skip google internal links
+    try {
+      const parsed = new URL(cleanUrl);
+      if (
+        !["http:", "https:"].includes(parsed.protocol) ||
+        parsed.hostname === "support.google.com" ||
+        (["google.com", "www.google.com"].includes(parsed.hostname) &&
+          parsed.pathname === "/search")
+      )
+        cleanUrl = "";
+    } catch {
+      cleanUrl = "";
     }
 
     if (!title) continue;
@@ -980,16 +896,7 @@ function genericFallback($, startIndex, maxLength) {
     return "(No content extracted from this page.)";
   }
 
-  const totalLength = markdown.length;
-  const paginated = markdown.substring(startIndex, startIndex + maxLength);
-
-  let metadata = `\n\n---\n[webfetch: template="auto (fallback)", showing characters ${startIndex} to ${startIndex + paginated.length} of ${totalLength} total.`;
-  if (startIndex + maxLength < totalLength) {
-    metadata += ` Use start_index=${startIndex + maxLength} to read more.`;
-  }
-  metadata += `]`;
-
-  return paginated + metadata;
+  return paginate(markdown, "auto (fallback)", startIndex, maxLength);
 }
 
 // === SEARCH TEMPLATE RESOLUTION ==========================================
@@ -1000,7 +907,7 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
   let template;
   if (templateName.startsWith("{")) {
     try {
-      template = JSON.parse(templateName);
+      template = parseInlineTemplate(templateName);
     } catch (e) {
       throw new Error(`Invalid inline JSON template: ${e.message}`);
     }
@@ -1015,9 +922,11 @@ function resolveSearchTemplate(engine, query, region, safeSearch) {
   const params = mapSearchParams(engine, query, region, safeSearch);
   let url = resolveUrlTemplate(template, params);
 
-  // Google safe_search: append safe=active to URL
-  if ((engine === "google" || templateName === "google-search") && safeSearch === true) {
-    url += "&safe=active";
+  // Set both explicit states; null preserves the template default.
+  if (templateName === "google-search" && safeSearch != null) {
+    const parsed = new URL(url);
+    parsed.searchParams.set("safe", safeSearch ? "active" : "off");
+    url = parsed.href;
   }
 
   return { template, url };
@@ -1071,7 +980,7 @@ function resolveSearchCandidates(engine, query, region, safeSearch) {
 
 // === MCP SERVER & TOOLS ==================================================
 
-const server = new McpServer({ name: "searchfetch", version: "3.3.3" });
+const server = new McpServer({ name: "searchfetch", version: "3.3.4" });
 
 // --- websearch tool ---
 
@@ -1082,7 +991,7 @@ server.registerTool(
     description:
       "Search the web using DuckDuckGo or Google. Returns a clean list of titles, URLs, and snippets. Excellent for researching general knowledge, news, and finding URLs.",
     inputSchema: z.object({
-      query: z.string().describe("The search query string."),
+      query: z.string().trim().min(1).describe("The search query string."),
       engine: z
         .string()
         .default("duckduckgo")
@@ -1105,6 +1014,8 @@ server.registerTool(
         ),
       max_results: z
         .number()
+        .int()
+        .positive()
         .default(10)
         .describe("Maximum number of search results to return. Default is 10."),
       block_media: z
@@ -1128,7 +1039,7 @@ server.registerTool(
           const $ = cheerio.load(html);
           applyRemove($, candidate.template);
           extracted = extractTemplate($, candidate.template, {
-            origin: new URL(candidate.url).origin,
+            origin: candidate.url,
             isWebsearch: true,
             maxResultsOverride: max_results,
             _maxResultsConsumed: false,
@@ -1174,6 +1085,11 @@ server.registerTool(
     inputSchema: z.object({
       url: z
         .string()
+        .url()
+        .refine(
+          (value) => ["http:", "https:"].includes(new URL(value).protocol),
+          "URL must use HTTP or HTTPS",
+        )
         .describe("The full URL of the webpage to fetch (must start with http/https)."),
       template: z
         .string()
@@ -1185,9 +1101,16 @@ server.registerTool(
             "docker-hub, docs-rs, docs-page), 'raw' for minimal-filtering full-page output, " +
             "or inline JSON.",
         ),
-      start_index: z.number().default(0).describe("Character offset for pagination. Default: 0."),
+      start_index: z
+        .number()
+        .int()
+        .nonnegative()
+        .default(0)
+        .describe("Character offset for pagination. Default: 0."),
       max_length: z
         .number()
+        .int()
+        .positive()
         .default(10000)
         .describe("Maximum characters to return per request. Default is 10000."),
       block_media: z
@@ -1205,7 +1128,7 @@ server.registerTool(
 
       if (templateParam.startsWith("{")) {
         try {
-          template = JSON.parse(templateParam);
+          template = parseInlineTemplate(templateParam);
         } catch (e) {
           throw new Error(`Invalid inline JSON template: ${e.message}`);
         }
@@ -1223,16 +1146,11 @@ server.registerTool(
       }
 
       if (sourceMd !== null) {
-        const totalLength = sourceMd.length;
-        const paginated = sourceMd.substring(start_index, start_index + max_length);
-        let metadata =
-          `\n\n---\n[webfetch: template="${template ? template.name : "auto"}" (source markdown), ` +
-          `showing characters ${start_index} to ${start_index + paginated.length} of ${totalLength} total.`;
-        if (start_index + max_length < totalLength) {
-          metadata += ` Use start_index=${start_index + max_length} to read more.`;
-        }
-        metadata += "]";
-        return { content: [{ type: "text", text: paginated + metadata }] };
+        return {
+          content: [
+            { type: "text", text: paginate(sourceMd, template.name, start_index, max_length) },
+          ],
+        };
       }
 
       // 3. Fetch
@@ -1244,7 +1162,7 @@ server.registerTool(
       if (template) {
         applyRemove($, template);
 
-        const pageOrigin = new URL(url).origin;
+        const pageOrigin = url;
         const context = {
           origin: pageOrigin,
           isWebsearch: false,
@@ -1270,6 +1188,9 @@ server.registerTool(
 // === EXPORTS (for testing without starting server) =========================
 
 export {
+  BrowserManager,
+  applyRemove,
+  server,
   loadBuiltinTemplates,
   getTemplateByName,
   detectTemplateByUrl,
@@ -1333,10 +1254,14 @@ async function main() {
   process.on("SIGTERM", cleanup);
 
   const restoreStdout = redirectStartupOutputToStderr();
-  await ensureBinary();
-  restoreStdout();
+  try {
+    await ensureBinary();
+  } finally {
+    restoreStdout();
+  }
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  process.stdin.once("end", cleanup);
 }
 
 // Guard: only start server when run directly (including via npm bin symlink),
@@ -1344,7 +1269,8 @@ async function main() {
 // symlinks resolve to the module file correctly.
 const isMain = isMainModule();
 if (isMain) {
-  main().catch((_err) => {
+  main().catch((err) => {
+    console.error(err);
     process.exit(1);
   });
 }

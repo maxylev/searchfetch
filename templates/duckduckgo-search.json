@@ -2,9 +2,7 @@
   "name": "duckduckgo-search",
   "description": "DuckDuckGo HTML search results",
   "order": 8,
-  "url_patterns": [
-    "^https?://html\\.duckduckgo\\.com/html/\\?"
-  ],
+  "url_patterns": ["^https?://html\\.duckduckgo\\.com/html/\\?"],
   "url_template": "https://html.duckduckgo.com/html/?q={query}&kl={kl}&kp={kp}",
   "url_params": {
     "query": {
@@ -23,20 +21,8 @@
       "description": "Safe search: '-1' moderate, '1' strict, '-2' off"
     }
   },
-  "block_resources": [
-    "image",
-    "media",
-    "font",
-    "stylesheet"
-  ],
-  "remove": [
-    "script",
-    "style",
-    "svg",
-    "img",
-    "nav",
-    "footer"
-  ],
+  "block_resources": ["image", "media", "font", "stylesheet"],
+  "remove": ["script", "style", "svg", "img", "nav", "footer"],
   "sections": [
     {
       "name": "Results",

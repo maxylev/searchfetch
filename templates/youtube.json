@@ -2,9 +2,7 @@
   "name": "youtube",
   "description": "YouTube video — title, channel, description",
   "order": 30,
-  "url_patterns": [
-    "^https?://(?:www\\.)?(?:youtube\\.com/watch\\?v=|youtu\\.be/).+"
-  ],
+  "url_patterns": ["^https?://(?:www\\.)?(?:youtube\\.com/watch\\?v=|youtu\\.be/).+"],
   "remove": [
     "script",
     "style",

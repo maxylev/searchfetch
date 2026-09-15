@@ -1,6 +1,6 @@
 {
   "name": "searchfetch",
-  "version": "3.3.3",
+  "version": "3.3.4",
   "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
   "type": "module",
   "bin": {
@@ -8,7 +8,8 @@
   },
   "files": [
     "index.js",
-    "templates/"
+    "templates/",
+    "lib/"
   ],
   "publishConfig": {
     "access": "public"
@@ -23,12 +24,12 @@
     "inspector-py": "npx @modelcontextprotocol/inspector uv run python ./server.py",
     "test": "npm run test:js && npm run test:py",
     "test:js": "node --test \"*.test.js\"",
-    "test:py": "uv run --extra dev pytest test_*.py -v",
+    "test:py": "uv run --locked --extra dev pytest -q",
     "lint": "npm run lint:js && npm run lint:py",
-    "lint:js": "npx eslint \"*.js\" \"scripts/*.mjs\"",
-    "lint:py": "uv run --extra dev ruff check server.py scripts/*.py test_*.py",
-    "format": "npx prettier --write \"*.js\" \"scripts/*.mjs\" \"*.json\" \"*.md\" && uv run --extra dev ruff format server.py scripts/*.py test_*.py",
-    "format:check": "npx prettier --check \"*.js\" \"scripts/*.mjs\" \"*.json\" \"*.md\" && uv run --extra dev ruff format --check server.py scripts/*.py test_*.py",
+    "lint:js": "eslint . --max-warnings=0",
+    "lint:py": "uv run --locked --extra dev ruff check .",
+    "format": "prettier --write \"*.js\" \"lib/*.js\" \"scripts/*.mjs\" \"*.json\" \"templates/*.json\" \"*.md\" && uv run --locked --extra dev ruff format .",
+    "format:check": "prettier --check \"*.js\" \"lib/*.js\" \"scripts/*.mjs\" \"*.json\" \"templates/*.json\" \"*.md\" && uv run --locked --extra dev ruff format --check .",
     "e2e": "npm run e2e:node && npm run e2e:py",
     "e2e:node": "node scripts/e2e-node.mjs",
     "e2e:py": "uv run python scripts/e2e-python.py"
@@ -36,16 +37,16 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "cheerio": "^1.2.0",
-    "cloakbrowser": "^0.5.5",
-    "playwright-core": "^1.62.1",
+    "cloakbrowser": "^0.5.10",
+    "playwright-core": "^1.63.0",
     "turndown": "^7.2.4",
-    "zod": "^4.4.3"
-  },
-  "overrides": {
-    "encoding-sniffer": "1.0.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "eslint": "^10.8.0",
+    "eslint": "^10.10.0",
     "prettier": "^3.9.6"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

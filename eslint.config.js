@@ -1,4 +1,5 @@
 export default [
+  { ignores: [".venv/**", "dist/**"] },
   {
     languageOptions: {
       ecmaVersion: "latest",
@@ -23,9 +24,10 @@ export default [
       },
     },
     rules: {
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-console": "off",
-      "no-unreachable": "warn",
+      "no-unreachable": "error",
+      "no-undef": "error",
     },
   },
 ];

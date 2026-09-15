@@ -6,13 +6,7 @@
     "^https?://crates\\.io/crates/[^/]+/?$",
     "^https?://crates\\.io/crates/[^/]+/[^/]+/?$"
   ],
-  "remove": [
-    "script",
-    "style",
-    "svg",
-    "nav",
-    "footer"
-  ],
+  "remove": ["script", "style", "svg", "nav", "footer"],
   "sections": [
     {
       "name": "Crate",
