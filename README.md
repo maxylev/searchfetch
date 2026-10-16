@@ -137,6 +137,19 @@ The runtimes mirror each other module for module (`templates`, `extract`, `markd
 `browser`, `server`). Any change to one should be made to the other, with a shared fixture if
 the behavior is observable.
 
+### Releasing
+
+Bump `version` in both `package.json` and `pyproject.toml` (then `npm install` and `uv lock`),
+commit, and push a matching tag:
+
+```sh
+git tag -a v4.0.1 -m "v4.0.1" && git push origin main v4.0.1
+```
+
+The Publish workflow checks that the tag matches both versions, runs lint and unit tests,
+publishes to npm and PyPI, and then creates the GitHub Release with generated notes. To retry a
+tag, run the workflow manually from the Actions tab with that tag.
+
 ### Limits
 
 - HTML-to-Markdown conversion uses turndown (Node) and markdownify (Python). They agree on
