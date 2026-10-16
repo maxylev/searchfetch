@@ -1,7 +1,7 @@
 {
   "name": "pypi-package",
   "description": "PyPI package page — metadata and README",
-  "order": 4,
+  "order": 40,
   "url_patterns": [
     "^https?://pypi\\.org/project/[^/]+/?$",
     "^https?://pypi\\.org/project/[^/]+/[^/]+/?$"

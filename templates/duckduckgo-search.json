@@ -1,7 +1,9 @@
 {
   "name": "duckduckgo-search",
   "description": "DuckDuckGo HTML search results",
-  "order": 8,
+  "order": 80,
+  "engine": "duckduckgo",
+  "fallback": "duckduckgo-lite-search",
   "url_patterns": ["^https?://html\\.duckduckgo\\.com/html/\\?"],
   "url_template": "https://html.duckduckgo.com/html/?q={query}&kl={kl}&kp={kp}",
   "url_params": {

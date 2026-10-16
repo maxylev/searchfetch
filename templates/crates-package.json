@@ -1,7 +1,7 @@
 {
   "name": "crates-package",
   "description": "crates.io package page — metadata and README",
-  "order": 5,
+  "order": 50,
   "url_patterns": [
     "^https?://crates\\.io/crates/[^/]+/?$",
     "^https?://crates\\.io/crates/[^/]+/[^/]+/?$"

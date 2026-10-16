@@ -1,24 +1,26 @@
-# SearchFetch (MCP Server)
+# SearchFetch
 
-A fault-tolerant, stealth-enabled Model Context Protocol (MCP) server for web searching and content fetching. Built for AI Agents (Cursor, Claude Code, OpenCode), it uses a browser to render pages and converts their content into Markdown.
+An [MCP](https://modelcontextprotocol.io) server that gives AI agents web search and page
+fetching through a stealth browser. Pages are rendered with JavaScript, stripped of noise, and
+returned as compact Markdown.
 
-## Features
+- **Browser rendering:** [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) runs Chromium
+  with humanized input. Each fetch uses an isolated browser context. Sites may still demand
+  logins or challenges.
+- **Fault tolerance:** relaunches a disconnected browser and retries timeouts, network failures
+  and HTTP 429 (honoring `Retry-After`, capped at 30 s) once. Built-in search engines fall back
+  to DuckDuckGo HTML and then DuckDuckGo Lite.
+- **Token-efficient output:** scripts, styles, SVGs, inline styles and embedded `data:` images
+  are removed before conversion; images, media and fonts are blocked at the network layer.
+- **Template-driven extraction:** JSON templates for GitHub, GitLab, npm, PyPI, crates.io,
+  docs.rs, Docker Hub, Wikipedia, MDN, Reddit, YouTube, DEV, pkg.go.dev, Javadoc and generic
+  documentation sites. Custom templates can be passed inline.
+- **Two runtimes:** Python (`uvx`, Python 3.11.5+) or Node.js (`npx`, Node 24+), with the same
+  tools, templates and output. The first run downloads the browser binary.
 
-- **Browser rendering:** CloakBrowser runs Chromium with humanized interactions. Sites can still require authentication or present challenges.
-- **Fault tolerance:** Reconnects disconnected browsers, retries network failures and HTTP 429 once, and blocks template-selected resource types. HTTP errors are reported before waiting for rendering.
-- **Token-Optimized Output:** Strips base64 images, SVGs, scripts, and inline styles from the DOM _before_ Markdown conversion.
-- **Dual runtime:** Run through Python (`uvx`, Python 3.10+) or Node.js (`npx`, Node 24+). First use downloads dependencies and a browser binary.
-- **Template-Driven Extraction:** Structured extraction via shared JSON templates (GitHub, npm, PyPI, crates.io, docs pages, Docker Hub, and more). Supports custom inline templates.
+## Setup
 
----
-
-## Usage & Installation
-
-You do not need to install this repository manually. Configure your agent to use the zero-install commands `npx` or `uvx`.
-
-### Claude Desktop Configuration
-
-**Option A: Python (`uvx` - Recommended)**
+No manual install is needed. Point your MCP client at `uvx` or `npx`:
 
 ```json
 {
@@ -31,112 +33,115 @@ You do not need to install this repository manually. Configure your agent to use
 }
 ```
 
-**Option B: Node.js (`npx`)**
+For Node.js, use `"command": "npx", "args": ["-y", "searchfetch"]`. In Cursor, add a `command`
+server with `uvx searchfetch` or `npx -y searchfetch`.
 
-```json
-{
-  "mcpServers": {
-    "searchfetch": {
-      "command": "npx",
-      "args": ["-y", "searchfetch"]
-    }
-  }
-}
-```
+## Tools
 
-### Cursor / IDE Configuration
+Both tools are read-only. Failures are returned as MCP tool errors.
 
-Add via the **MCP panel** in Cursor settings:
+### `websearch`
 
-- **Type:** `command`
-- **Command:** `uvx searchfetch` (or `npx -y searchfetch`)
+| Parameter     | Type         | Default        | Description                                                                       |
+| ------------- | ------------ | -------------- | --------------------------------------------------------------------------------- |
+| `query`       | string       | _required_     | Search query (must not be blank).                                                 |
+| `engine`      | string       | `"duckduckgo"` | `"duckduckgo"`, `"google"`, a search template name, or an inline JSON template.   |
+| `region`      | string/null  | `null`         | Region-language code such as `"us-en"`. DuckDuckGo: `kl`; Google: `gl` and `hl`.  |
+| `safe_search` | boolean/null | `null`         | `true` or `false` sets the engine's safe search; `null` keeps the engine default. |
+| `max_results` | integer      | `10`           | Maximum results (positive).                                                       |
+| `block_media` | boolean      | `true`         | Block images, media and fonts at the network layer.                               |
 
----
+Results are a numbered list of titles, URLs and snippets. When an engine fails or returns no
+results, the next template in its `fallback` chain is tried (`google` → `duckduckgo-search` →
+`duckduckgo-lite-search`), and a `[websearch: …]` note at the top of the output explains why.
 
-## Available Tools
+### `webfetch`
 
-### 1. `websearch`
+| Parameter     | Type    | Default    | Description                                                         |
+| ------------- | ------- | ---------- | ------------------------------------------------------------------- |
+| `url`         | string  | _required_ | Absolute `http`/`https` URL.                                        |
+| `template`    | string  | `"auto"`   | `"auto"` (detect by URL), a template name, or inline JSON template. |
+| `start_index` | integer | `0`        | Start offset in Unicode code points (non-negative).                 |
+| `max_length`  | integer | `10000`    | Maximum code points to return (positive).                           |
+| `block_media` | boolean | `true`     | Block images, media and fonts at the network layer.                 |
 
-Search the web through the template pipeline. DuckDuckGo and Google are built-in; custom search templates can be selected by name.
+Output ends with a footer naming the template and the character window, plus the next
+`start_index` when more content remains. Pages that match no template are converted whole after
+removing navigation, headers, footers, sidebars, dialogs and media (`template="auto (fallback)"`).
+The `raw` template converts the full `<body>` with no removal.
 
-| Parameter     | Type         | Default        | Description                                                                                    |
-| ------------- | ------------ | -------------- | ---------------------------------------------------------------------------------------------- |
-| `query`       | string       | _required_     | The search query string.                                                                       |
-| `engine`      | string       | `"duckduckgo"` | `"duckduckgo"`, `"google"`, or a custom search template name.                                  |
-| `max_results` | number       | `10`           | Positive integer limit on extracted results.                                                   |
-| `region`      | string/null  | `null`         | Region/language code (e.g. `"us-en"`, `"de-de"`). DDG maps directly; Google maps to `gl`/`hl`. |
-| `safe_search` | boolean/null | `null`         | Enable safe search. `null` uses the template default.                                          |
-| `block_media` | boolean      | `true`         | Block images, media, and fonts at the network layer.                                           |
+## Templates
 
-### 2. `webfetch`
+Built-in templates live in [`templates/`](templates/) and are shared by both runtimes. Page
+templates: `github-repo`, `github-issue`, `npm-package`, `pypi-package`, `crates-package`,
+`docs-rs`, `javadoc`, `docs-page`, `docker-hub`, `wikipedia`, `gitlab`, `reddit`,
+`mdn-web-docs`, `devto`, `go-pkg`, `youtube`, `raw`. Search templates: `google-search`,
+`duckduckgo-search`, `duckduckgo-lite-search`.
 
-Fetch a page with the stealth browser and extract structured Markdown using a template. Falls back to generic Markdown extraction for unknown pages.
+Templates are validated when they are loaded or passed inline:
 
-| Parameter     | Type    | Default    | Description                                           |
-| ------------- | ------- | ---------- | ----------------------------------------------------- |
-| `url`         | string  | _required_ | Full URL (must start with `http`/`https`).            |
-| `template`    | string  | `"auto"`   | `"auto"`, a built-in name, or inline JSON template.   |
-| `start_index` | number  | `0`        | Nonnegative integer offset in Unicode code points.    |
-| `max_length`  | number  | `10000`    | Positive integer limit in Unicode code points.        |
-| `block_media` | boolean | `true`     | Block images, videos, and fonts at the network layer. |
+| Field             | Description                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `name`            | Required unique name (inline templates default to `"custom"`).                                   |
+| `sections`        | Required list of sections (see below).                                                           |
+| `order`           | Precedence for `auto` detection; lower wins.                                                     |
+| `url_patterns`    | Regular expressions (compatible with JavaScript and Python) that select the template for `auto`. |
+| `remove`          | CSS selectors removed before extraction. Defaults to scripts, styles, SVG, nav, footer, iframes. |
+| `source_url`      | Raw Markdown source tried first, e.g. `"{url}.md"`; HTML responses are ignored.                  |
+| `cookies`         | Playwright cookies added to the browser context.                                                 |
+| `block_resources` | Resource types blocked when `block_media` is on. Default: `image`, `media`, `font`.              |
+| `url_template`    | Search URL with `{placeholders}`; makes the template usable by `websearch`.                      |
+| `url_params`      | Per placeholder: `required`, `default`, and `encode: "url"`.                                     |
+| `engine`          | `"duckduckgo"` or `"google"`: how `region` and `safe_search` map to URL parameters.              |
+| `fallback`        | Name of the search template to try when this one fails.                                          |
 
-Template extraction supports `text`, `markdown`, `attribute`, and `html` formats; child fields within a section; repeated sections; URL-decoding transforms; per-template cookies; and per-template resource blocking.
+Each section has a `name`, a `selector` (empty selects `<body>`), and optionally `format` (`text`, `markdown`,
+`attribute` with `attribute`, or `html`), `transform` (one or a list of `strip`,
+`decode_google_url`, `decode_ddg_url`, `json_parse`, `resolve_href`), `required`, `multiple`,
+`max_items`, and `children` (fields extracted from inside each matched element).
 
-Built-in templates live in `templates/*.json` and are shared by the Node.js and Python implementations.
+Selectors separated by top-level commas are ordered fallbacks: the first selector that matches
+wins, and an empty fallback selects the current element. Children search inside their parent
+element and its ancestors, never neighbouring results, so a missing field stays missing. Missing
+`required` sections or fields are reported as errors.
 
-**Available page templates** (auto-detected by URL or selectable by name):
-`wikipedia`, `reddit`, `mdn-web-docs`, `gitlab`, `youtube`, `devto`, `go-pkg`, `javadoc`,
-`github-repo`, `github-issue`, `npm-package`, `pypi-package`, `crates-package`,
-`docker-hub`, `docs-rs`, `docs-page`
+A records section whose first item has `Author`/`User` and `Comment`/`Body` fields is rendered as
+a comment thread; other records render as indented `Key: value` blocks.
 
-**`raw`** — special template that applies minimal filtering and returns full body content as markdown. Use when you need the complete page without template-specific extraction.
-
----
-
-## Local Development
+## Development
 
 ```bash
-# Install dependencies
-npm ci
-uv sync --locked --extra dev
+npm ci && uv sync --locked --extra dev
+git config core.hooksPath .githooks   # optional: format, lint and unit tests before commits
 
-# Run tests
-npm test                # runs all tests (JS + Python)
-npm run test:js         # Node.js unit tests (built-in test runner)
-npm run test:py         # Python unit tests (pytest)
-
-# Lint
-npm run lint            # runs all linters
-npm run lint:js         # ESLint
-npm run lint:py         # Ruff
-
-# Format
-npm run format          # auto-format all source files
-npm run format:check    # check formatting without changes
-
-# MCP inspector (for manual testing)
-npm run inspector-js    # test with MCP Inspector (Node.js)
-npm run inspector-py    # test with MCP Inspector (Python)
+npm test               # Node (node:test) and Python (pytest) unit tests
+npm run lint           # ESLint and Ruff
+npm run format         # Prettier and Ruff format (format:check to verify)
+npm run e2e            # real browser against local fixtures, plus the packed npm and wheel builds
+npm run check          # everything CI runs
+npm run inspect:node   # MCP Inspector (inspect:py for Python)
 ```
 
----
+### Layout
 
-## Architecture
+| Path                         | Contents                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `src/`                       | Node.js runtime (`index.js` is the `searchfetch` executable).             |
+| `searchfetch/`               | Python package (`python -m searchfetch` or the `searchfetch` script).     |
+| `templates/`                 | Shared templates; bundled into the npm package and the Python wheel.      |
+| `tests/fixtures/`            | Shared fixtures that keep both runtimes' extraction and output identical. |
+| `tests/node`, `tests/python` | Unit tests.                                                               |
+| `tests/e2e/`                 | MCP end-to-end tests over stdio against a local HTTP server.              |
 
-Both MCP servers expose `websearch` and `webfetch` over standard input/output:
+The runtimes mirror each other module for module (`templates`, `extract`, `markdown`, `compose`,
+`browser`, `server`). Any change to one should be made to the other, with a shared fixture if
+the behavior is observable.
 
-1. Validate tool inputs and resolve a built-in or inline JSON template.
-2. Reuse one browser, creating an isolated browser context for each fetch attempt.
-3. Apply template cookies and resource blocking, navigate, check HTTP status, and allow up to five seconds for network activity to settle.
-4. Remove configured elements, extract section fields, apply transforms, and compose Markdown. Page templates may first try a raw Markdown source URL.
-5. Paginate page output using Unicode code points. Search requests can fall back from Google to DuckDuckGo HTML and then Lite; output names any fallback engine.
+### Limits
 
-`index.js` and `server.py` contain the runtime-specific browser and MCP integration. `lib/` and `selectors_utils.py` hold focused formatting and selector helpers. Both runtimes read the same `templates/*.json`; Python wheels bundle these as `searchfetch_templates` resources. Shared fixtures in `tests/fixtures/` exercise extraction behavior in both runtimes.
-
-Selectors separated by top-level commas are ordered fallbacks. Commas inside CSS functions or attributes are preserved; an empty fallback selects the current element. Child extraction searches descendants and enclosing elements, without borrowing fields from neighboring results. Missing required fields and malformed selectors report errors.
-
-## Verification and limits
-
-`npm test`, `npm run lint`, and `npm run format:check` check both runtimes. `npm run e2e` runs real browser requests against local HTTP fixtures, exercises every built-in template, and checks the installed npm executable and Python wheel. Public search-engine availability and changing third-party page layouts require separate live checks. A page that continues rendering beyond the bounded wait may return partial content.
-
-`package-lock.json` and `uv.lock` record dependency resolution.
+- HTML-to-Markdown conversion uses turndown (Node) and markdownify (Python). They agree on
+  common content, but edge cases such as tables differ.
+- After the DOM is ready, each fetch waits up to five seconds for network activity to settle.
+  Pages that keep rendering after that may return partial content.
+- E2E tests use local fixtures. Live search-engine availability and third-party page layouts
+  change over time and need separate live checks.

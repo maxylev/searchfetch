@@ -153,5 +153,16 @@
       "Google snippet two"
     ],
     "absent": ["NAVNOISE"]
+  },
+  {
+    "template": "duckduckgo-lite-search",
+    "html": "<html><head><title>DuckDuckGo Lite</title></head><body><table><tr><td><a class='result-link' href='//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Flite-one&rut=abc'>Lite result one</a></td></tr><tr><td class='result-snippet'>Lite snippet</td></tr><tr><td><a class='result-link' href='https://example.com/lite-two'>Lite result two</a></td></tr></table><script>window.liteTracker = 1;</script></body></html>",
+    "expect": [
+      "Lite result one",
+      "https://example.com/lite-one",
+      "Lite result two",
+      "https://example.com/lite-two"
+    ],
+    "absent": ["uddg=", "liteTracker"]
   }
 ]

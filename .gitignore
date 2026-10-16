@@ -49,4 +49,3 @@ env/
 .pytest_cache/
 .ruff_cache/
 .cloakbrowser/
-.opencode/

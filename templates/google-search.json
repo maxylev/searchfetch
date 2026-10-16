@@ -1,7 +1,9 @@
 {
   "name": "google-search",
   "description": "Google web search results",
-  "order": 7,
+  "order": 70,
+  "engine": "google",
+  "fallback": "duckduckgo-search",
   "url_patterns": ["^https?://(www\\.)?google\\.[^/]+/search\\?"],
   "url_template": "https://www.google.com/search?udm=14&q={query}&hl={hl}&gl={gl}",
   "url_params": {

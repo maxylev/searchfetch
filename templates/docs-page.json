@@ -1,7 +1,7 @@
 {
   "name": "docs-page",
   "description": "Documentation page (ReadTheDocs, Sphinx, Mintlify, VitePress, Docusaurus, Nextra, etc.)",
-  "order": 9,
+  "order": 100,
   "url_patterns": [
     "^https?://[^/]+\\.readthedocs\\.io/.*",
     "^https?://[^/]+\\.rtfd\\.io/.*",

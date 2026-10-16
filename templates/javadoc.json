@@ -1,7 +1,7 @@
 {
   "name": "javadoc",
   "description": "Java SE API documentation — class/method details",
-  "order": 8.5,
+  "order": 90,
   "url_patterns": ["^https?://docs\\.oracle\\.com/.*/docs/api/.*"],
   "remove": [
     "script",

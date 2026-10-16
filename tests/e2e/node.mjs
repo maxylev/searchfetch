@@ -6,9 +6,9 @@ import { createServer } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const fixture = readFileSync(new URL("../tests/fixtures/page.html", import.meta.url));
+const fixture = readFileSync(new URL("../fixtures/page.html", import.meta.url));
 const templateCases = JSON.parse(
-  readFileSync(new URL("../tests/fixtures/templates.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../fixtures/templates.json", import.meta.url), "utf8"),
 );
 const templateFixtures = new Map(
   templateCases.map((templateCase) => [`/fixture/${templateCase.template}`, templateCase]),
@@ -25,7 +25,9 @@ const httpServer = createServer((request, response) => {
 await new Promise((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
 const baseUrl = `http://127.0.0.1:${httpServer.address().port}`;
 
-const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const packageJson = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+);
 const exampleSearchTemplate = JSON.stringify({
   name: "e2e-example-search",
   url_template: `${baseUrl}/?q={query}`,
@@ -122,6 +124,12 @@ async function assertMcpServer(command, args) {
     if (!missing.isError || !missing.content?.[0]?.text.includes("404"))
       throw new Error("HTTP error was not reported");
 
+    const invalid = await client.callTool({
+      name: "webfetch",
+      arguments: { url: "file:///etc/passwd" },
+    });
+    if (!invalid.isError) throw new Error("Non-web URL was accepted");
+
     await assertAllTemplates(client);
   });
 }
@@ -170,7 +178,7 @@ async function assertPackedNpmBin() {
 }
 
 try {
-  await assertMcpServer("node", ["./index.js"]);
+  await assertMcpServer("node", ["src/index.js"]);
   await assertPackedNpmBin();
   console.log("Node MCP E2E passed");
 } finally {

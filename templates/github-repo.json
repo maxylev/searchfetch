@@ -1,7 +1,7 @@
 {
   "name": "github-repo",
   "description": "GitHub repository root — file listing and README",
-  "order": 1,
+  "order": 10,
   "url_patterns": ["^https?://github\\.com/[^/]+/[^/]+/?$"],
   "remove": ["script", "style", "svg", ".octicon", ".anchor"],
   "sections": [

@@ -1,7 +1,7 @@
 {
   "name": "gitlab",
   "description": "GitLab project — description, file listing, and README",
-  "order": 12,
+  "order": 130,
   "url_patterns": [
     "^https?://gitlab\\.com/[^/]+/[^/]+/?$",
     "^https?://gitlab\\.com/[^/]+/[^/]+/-/tree/[^/]+/?$"

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
+# Fast pre-commit checks; run scripts/ci-check.sh for the full CI suite including E2E.
 set -euo pipefail
 
-echo "Running full CI checks before commit..."
-./scripts/ci-check.sh
+npm run format:check
+npm run lint
+npm test

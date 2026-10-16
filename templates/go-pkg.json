@@ -1,7 +1,7 @@
 {
   "name": "go-pkg",
   "description": "Go package documentation on pkg.go.dev — name, overview, and docs",
-  "order": 22,
+  "order": 170,
   "url_patterns": [
     "^https?://pkg\\.go\\.dev/[^/]+/?$",
     "^https?://pkg\\.go\\.dev/[^/]+/[^/]+/?$",

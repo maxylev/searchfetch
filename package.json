@@ -1,50 +1,54 @@
 {
   "name": "searchfetch",
-  "version": "3.3.4",
-  "description": "Fault-tolerant MCP Server for Stealth Web Search and Fetching",
+  "version": "4.0.0",
+  "description": "Fault-tolerant MCP server for stealth web search and page fetching",
+  "license": "MIT",
+  "author": "Max",
   "type": "module",
   "bin": {
-    "searchfetch": "index.js"
+    "searchfetch": "src/index.js"
   },
   "files": [
-    "index.js",
-    "templates/",
-    "lib/"
+    "src/",
+    "templates/"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/maxylev/searchfetch.git"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "start": "node ./index.js",
-    "inspector-js": "npx @modelcontextprotocol/inspector node ./index.js",
-    "inspector-py": "npx @modelcontextprotocol/inspector uv run python ./server.py",
-    "test": "npm run test:js && npm run test:py",
-    "test:js": "node --test \"*.test.js\"",
-    "test:py": "uv run --locked --extra dev pytest -q",
-    "lint": "npm run lint:js && npm run lint:py",
-    "lint:js": "eslint . --max-warnings=0",
+    "start": "node src/index.js",
+    "inspect:node": "npx @modelcontextprotocol/inspector node src/index.js",
+    "inspect:py": "npx @modelcontextprotocol/inspector uv run searchfetch",
+    "test": "npm run test:node && npm run test:py",
+    "test:node": "node --test \"tests/node/*.test.js\"",
+    "test:py": "uv run --locked --extra dev pytest",
+    "lint": "npm run lint:node && npm run lint:py",
+    "lint:node": "eslint . --max-warnings=0",
     "lint:py": "uv run --locked --extra dev ruff check .",
-    "format": "prettier --write \"*.js\" \"lib/*.js\" \"scripts/*.mjs\" \"*.json\" \"templates/*.json\" \"*.md\" && uv run --locked --extra dev ruff format .",
-    "format:check": "prettier --check \"*.js\" \"lib/*.js\" \"scripts/*.mjs\" \"*.json\" \"templates/*.json\" \"*.md\" && uv run --locked --extra dev ruff format --check .",
+    "format": "prettier --write . && uv run --locked --extra dev ruff format .",
+    "format:check": "prettier --check . && uv run --locked --extra dev ruff format --check .",
     "e2e": "npm run e2e:node && npm run e2e:py",
-    "e2e:node": "node scripts/e2e-node.mjs",
-    "e2e:py": "uv run python scripts/e2e-python.py"
+    "e2e:node": "node tests/e2e/node.mjs",
+    "e2e:py": "uv run --locked python tests/e2e/python.py",
+    "check": "scripts/ci-check.sh"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "cheerio": "^1.2.0",
-    "cloakbrowser": "^0.5.10",
-    "playwright-core": "^1.63.0",
+    "cloakbrowser": "^0.6.3",
+    "playwright-core": "^1.64.1",
     "turndown": "^7.2.4",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "eslint": "^10.10.0",
-    "prettier": "^3.9.6"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10"
   },
   "engines": {
     "node": ">=24.0.0"

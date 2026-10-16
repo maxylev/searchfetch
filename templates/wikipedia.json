@@ -1,7 +1,7 @@
 {
   "name": "wikipedia",
   "description": "Wikipedia article — title and main content",
-  "order": 11,
+  "order": 120,
   "url_patterns": ["^https?://[a-z]{2,4}\\.wikipedia\\.org/wiki/[^:]+$"],
   "remove": [
     "script",

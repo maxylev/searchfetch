@@ -1,0 +1,49 @@
+{
+  "name": "duckduckgo-lite-search",
+  "description": "DuckDuckGo Lite search results (fallback for the HTML endpoint)",
+  "order": 85,
+  "engine": "duckduckgo",
+  "url_patterns": ["^https?://lite\\.duckduckgo\\.com/lite/\\?"],
+  "url_template": "https://lite.duckduckgo.com/lite/?q={query}&kl={kl}&kp={kp}",
+  "url_params": {
+    "query": {
+      "required": true,
+      "description": "Search query string",
+      "encode": "url"
+    },
+    "kl": {
+      "required": false,
+      "default": "wt-wt",
+      "description": "Region/language code (e.g., 'us-en', 'de-de', 'wt-wt' for global)"
+    },
+    "kp": {
+      "required": false,
+      "default": "-1",
+      "description": "Safe search: '-1' moderate, '1' strict, '-2' off"
+    }
+  },
+  "block_resources": ["image", "media", "font", "stylesheet"],
+  "remove": ["script", "style", "svg", "img", "nav", "footer"],
+  "sections": [
+    {
+      "name": "Results",
+      "selector": "a.result-link",
+      "multiple": true,
+      "max_items": 10,
+      "children": [
+        {
+          "name": "Title",
+          "selector": "",
+          "format": "text"
+        },
+        {
+          "name": "URL",
+          "selector": "",
+          "format": "attribute",
+          "attribute": "href",
+          "transform": "decode_ddg_url"
+        }
+      ]
+    }
+  ]
+}

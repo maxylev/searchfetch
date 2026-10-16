@@ -1,7 +1,7 @@
 {
   "name": "devto",
   "description": "DEV Community article — title, author, and content",
-  "order": 20,
+  "order": 160,
   "url_patterns": ["^https?://dev\\.to/[^/]+/[^/]+"],
   "remove": [
     "script",

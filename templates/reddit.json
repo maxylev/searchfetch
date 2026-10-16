@@ -1,7 +1,7 @@
 {
   "name": "reddit",
   "description": "Reddit post — title, content, and comments",
-  "order": 13,
+  "order": 140,
   "url_patterns": ["^https?://(?:www\\.|old\\.)?reddit\\.com/r/[^/]+/comments/[^/]+"],
   "remove": [
     "script",
